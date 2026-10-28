@@ -1,0 +1,12 @@
+.git
+.github
+.dockerignore
+.goreleaser.yaml
+deploy/
+docs/
+dist/
+data/
+*.md
+**/*.db
+**/*.db-shm
+**/*.db-wal
