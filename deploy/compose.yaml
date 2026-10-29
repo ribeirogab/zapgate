@@ -1,0 +1,34 @@
+name: zapgate
+
+services:
+  zapgate:
+    image: ghcr.io/ribeirogab/zapgate:${ZAPGATE_VERSION:-latest}
+    build:
+      context: ..
+    restart: unless-stopped
+    environment:
+      ZAPGATE_PUBLIC_URL: ${ZAPGATE_PUBLIC_URL:-http://localhost:8080}
+      ZAPGATE_OWNER_PASSWORD: ${ZAPGATE_OWNER_PASSWORD:?run deploy/init-env.sh first}
+      ZAPGATE_SIGNING_KEY: ${ZAPGATE_SIGNING_KEY:?run deploy/init-env.sh first}
+      ZAPGATE_RETENTION_MONTHS: ${ZAPGATE_RETENTION_MONTHS:-6}
+      ZAPGATE_CLIENT_IP_HEADER: ${ZAPGATE_CLIENT_IP_HEADER:-}
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+      - /run/zapgate:size=1m,mode=0700,uid=1000,gid=1000
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 1g
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: "5"
+
+volumes:
+  data:
