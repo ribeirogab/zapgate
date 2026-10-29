@@ -49,24 +49,35 @@ func (r Result) Accepted() bool {
 	return r.Err == nil && r.Status >= 200 && r.Status <= 299
 }
 
+func (r Result) Blocked() bool {
+	var blocked *BlockedAddressError
+	return errors.As(r.Err, &blocked)
+}
+
 type Sender struct {
-	client *http.Client
+	plain  *http.Client
+	secure *http.Client
 }
 
-func NewSender() *Sender {
-	return &Sender{client: newClient()}
-}
-
-func newClient() *http.Client {
+func NewSender(resolver Resolver) *Sender {
 	dialer := &net.Dialer{Timeout: ConnectTimeout}
-	transport := &http.Transport{
+	plain := newTransport(localDialer{resolver: resolver, dialer: dialer}.DialContext)
+	plain.DisableKeepAlives = true
+	return &Sender{plain: newClient(plain), secure: newClient(newTransport(dialer.DialContext))}
+}
+
+func newTransport(dial func(ctx context.Context, network, address string) (net.Conn, error)) *http.Transport {
+	return &http.Transport{
 		Proxy:               nil,
-		DialContext:         dialer.DialContext,
+		DialContext:         dial,
 		TLSHandshakeTimeout: ConnectTimeout,
 		ForceAttemptHTTP2:   true,
 		MaxIdleConns:        MaxConcurrent,
 		IdleConnTimeout:     idleConnExpiry,
 	}
+}
+
+func newClient(transport *http.Transport) *http.Client {
 	return &http.Client{
 		Transport:     transport,
 		Timeout:       TotalTimeout,
@@ -74,12 +85,19 @@ func newClient() *http.Client {
 	}
 }
 
+func (s *Sender) clientFor(req *http.Request) *http.Client {
+	if req.URL.Scheme == httpsScheme {
+		return s.secure
+	}
+	return s.plain
+}
+
 func (s *Sender) Send(ctx context.Context, p Post) Result {
 	req, err := newRequest(ctx, p)
 	if err != nil {
 		return Result{Err: err}
 	}
-	resp, err := s.client.Do(req)
+	resp, err := s.clientFor(req).Do(req)
 	if err != nil {
 		return Result{Err: explain(err)}
 	}

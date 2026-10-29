@@ -41,6 +41,7 @@ type Harness struct {
 	Owner       *admin.Client
 	WhatsApp    *fake.World
 	Clock       *clock.Manual
+	Hosts       *Hosts
 
 	cfg         config.Config
 	listenerURL bool
@@ -94,6 +95,7 @@ func Start(t testing.TB, opts ...Option) *Harness {
 		AdminSocket: filepath.Join(socketDir, "admin.sock"),
 		WhatsApp:    fake.New(),
 		Clock:       clock.NewManual(StartTime),
+		Hosts:       newHosts(),
 		audit:       &lockedBuffer{},
 		address:     "127.0.0.1:0",
 		listenerURL: o.listenerIsURL,
@@ -170,6 +172,7 @@ func (h *Harness) start(t testing.TB) {
 		Audit:        h.audit,
 		Log:          slog.New(slog.NewJSONHandler(io.Discard, nil)),
 		Transcoder:   h.transcoder,
+		Resolver:     h.Hosts,
 	})
 	if err != nil {
 		cancel()
