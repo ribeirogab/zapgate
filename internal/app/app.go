@@ -25,6 +25,7 @@ import (
 	"github.com/ribeirogab/zapgate/internal/retention"
 	"github.com/ribeirogab/zapgate/internal/store"
 	"github.com/ribeirogab/zapgate/internal/tools"
+	"github.com/ribeirogab/zapgate/internal/webhooks"
 	"github.com/ribeirogab/zapgate/internal/whatsapp"
 )
 
@@ -174,6 +175,7 @@ func (a *App) wire(deps Deps, outbox *media.Outbox) {
 		OwnerPassword: a.cfg.OwnerPassword,
 		Media:         a.media,
 		Retention:     expiry,
+		Webhooks:      webhooks.NewRegistry(webhooks.RegistryDeps{Store: a.store, Clock: deps.Clock, Sender: webhooks.NewSender()}),
 
 		DefaultRetentionMonths: a.cfg.RetentionMonths,
 	})

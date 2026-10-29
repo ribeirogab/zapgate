@@ -6,6 +6,7 @@ require (
 	github.com/google/jsonschema-go v0.4.3
 	github.com/mdp/qrterminal/v3 v3.2.1
 	github.com/modelcontextprotocol/go-sdk v1.8.0
+	github.com/standard-webhooks/standard-webhooks/libraries v0.0.1
 	go.mau.fi/whatsmeow v0.0.0-20261007111105-c386243a72ba
 	golang.org/x/text v0.43.0
 	google.golang.org/protobuf v1.36.12

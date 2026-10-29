@@ -13,6 +13,7 @@ import (
 	"github.com/ribeirogab/zapgate/internal/oauth"
 	"github.com/ribeirogab/zapgate/internal/retention"
 	"github.com/ribeirogab/zapgate/internal/store"
+	"github.com/ribeirogab/zapgate/internal/webhooks"
 )
 
 const maxBodyBytes = 1 << 20
@@ -39,6 +40,7 @@ type Deps struct {
 	OwnerPassword          string
 	Media                  DiskUsage
 	Retention              RetentionPasses
+	Webhooks               *webhooks.Registry
 	DefaultRetentionMonths int
 }
 
@@ -68,6 +70,7 @@ func Handler(deps Deps) http.Handler {
 	mux.HandleFunc("PATCH /access/{name}", h.serve(h.setAccess))
 	mux.HandleFunc("POST /access/{name}/revoke", h.serve(h.revokeAccess))
 	mux.HandleFunc("GET /password", h.serve(h.password))
+	h.registerWebhookRoutes(mux)
 	return mux
 }
 
