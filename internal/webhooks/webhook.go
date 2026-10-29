@@ -1,6 +1,7 @@
 package webhooks
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"time"
@@ -71,10 +72,20 @@ func validateName(name string) error {
 	return nil
 }
 
-func validateURL(raw string) error {
+func validateURL(ctx context.Context, resolver Resolver, raw string) error {
 	u, err := url.Parse(raw)
-	if err != nil || (u.Scheme != httpScheme && u.Scheme != httpsScheme) || u.Host == "" {
+	if err != nil || (u.Scheme != httpScheme && u.Scheme != httpsScheme) || u.Hostname() == "" {
 		return invalid("the webhook URL %q is not valid: use an http or https URL with a host", raw)
+	}
+	if u.Scheme == httpsScheme {
+		return nil
+	}
+	addrs, err := lookup(ctx, resolver, u.Hostname())
+	if err != nil {
+		return invalid("the webhook URL %q is not valid: the host %s does not resolve", raw, u.Hostname())
+	}
+	if err := requireLocal(u.Hostname(), addrs); err != nil {
+		return invalid("the webhook URL %q is not valid: %v", raw, err)
 	}
 	return nil
 }

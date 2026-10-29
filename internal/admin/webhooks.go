@@ -84,8 +84,11 @@ func (h *handler) testWebhook(r *http.Request) (any, error) {
 }
 
 func testResult(result webhooks.Result) string {
-	if result.Accepted() {
+	switch {
+	case result.Accepted():
 		return audit.ResultOK
+	case result.Blocked():
+		return audit.ResultBlocked
 	}
 	return audit.ResultError
 }
