@@ -327,3 +327,15 @@ func TestAtMostFourPostsRunAtTheSameTime(t *testing.T) {
 	open()
 	rx.Await(t, 6)
 }
+
+func TestADeliveryAfterARotationIsSignedWithBothSecrets(t *testing.T) {
+	h := apptest.Start(t)
+	h.AddAccount(t, "work", workPhone, "Alex")
+	rx := h.StartReceiver(t)
+	old := addWebhook(t, h, rx, "support-bot", "work")
+	fresh := rotateSecret(t, h, rx, "support-bot")
+
+	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
+
+	requireSigners(t, rx.Await(t, 1), []string{fresh, old}, [][]string{{fresh, old}})
+}

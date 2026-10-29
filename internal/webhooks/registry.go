@@ -15,9 +15,10 @@ const (
 )
 
 type RegistryDeps struct {
-	Store  *store.Store
-	Clock  clock.Clock
-	Sender *Sender
+	Store    *store.Store
+	Clock    clock.Clock
+	Sender   *Sender
+	Resolver Resolver
 }
 
 type Registry struct {
@@ -40,18 +41,18 @@ type Registered struct {
 	Accounts []string
 }
 
-func (r Registration) validate() error {
+func (r Registration) validate(ctx context.Context, resolver Resolver) error {
 	if err := validateName(r.Name); err != nil {
 		return err
 	}
-	if err := validateURL(r.URL); err != nil {
+	if err := validateURL(ctx, resolver, r.URL); err != nil {
 		return err
 	}
 	return validateAccountChoice(r.AllExistingAccounts, r.Accounts)
 }
 
 func (r *Registry) Add(ctx context.Context, reg Registration) (Registered, string, error) {
-	if err := reg.validate(); err != nil {
+	if err := reg.validate(ctx, r.deps.Resolver); err != nil {
 		return Registered{}, "", err
 	}
 	secret, err := NewSecret()
@@ -114,7 +115,7 @@ func (r *Registry) Test(ctx context.Context, name string) (store.Webhook, Result
 		ID:        newTestID(),
 		Timestamp: now,
 		Body:      body,
-		Secrets:   []string{webhook.Secret},
+		Secrets:   SigningSecrets(webhook, now),
 		Headers:   webhook.Headers,
 	})
 	return webhook, result, nil

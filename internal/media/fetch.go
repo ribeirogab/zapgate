@@ -12,8 +12,9 @@ import (
 	"net/url"
 	"path"
 	"strings"
-	"syscall"
 	"time"
+
+	"github.com/ribeirogab/zapgate/internal/netguard"
 )
 
 const (
@@ -27,22 +28,7 @@ const (
 	fetchIdleExpiry = 30 * time.Second
 )
 
-var (
-	errBlockedAddress = errors.New("blocked address")
-	errScheme         = &FetchError{Message: "media_url must be an http or https URL"}
-)
-
-var blockedPrefixes = []netip.Prefix{
-	netip.MustParsePrefix("0.0.0.0/8"),
-	netip.MustParsePrefix("100.64.0.0/10"),
-	netip.MustParsePrefix("192.0.0.0/24"),
-	netip.MustParsePrefix("198.18.0.0/15"),
-	netip.MustParsePrefix("240.0.0.0/4"),
-	netip.MustParsePrefix("64:ff9b::/96"),
-	netip.MustParsePrefix("64:ff9b:1::/48"),
-	netip.MustParsePrefix("2001::/32"),
-	netip.MustParsePrefix("2002::/16"),
-}
+var errScheme = &FetchError{Message: "media_url must be an http or https URL"}
 
 type FetchError struct {
 	Message string
@@ -61,8 +47,8 @@ type fetcher struct {
 }
 
 func newFetcher(cfg FetchConfig) *fetcher {
-	guard := addressGuard{allowed: cfg.Allowed}
-	dialer := &net.Dialer{Timeout: dialTimeout, Control: guard.control}
+	guard := netguard.PublicGuard{Allowed: cfg.Allowed}
+	dialer := &net.Dialer{Timeout: dialTimeout, Control: guard.Control}
 	transport := &http.Transport{
 		DialContext:         dialer.DialContext,
 		ForceAttemptHTTP2:   true,
@@ -74,39 +60,6 @@ func newFetcher(cfg FetchConfig) *fetcher {
 		client:  &http.Client{Transport: transport, Timeout: cfg.Timeout, CheckRedirect: checkRedirect},
 		timeout: cfg.Timeout,
 	}
-}
-
-type addressGuard struct {
-	allowed []netip.Prefix
-}
-
-func (g addressGuard) control(_, address string, _ syscall.RawConn) error {
-	addrPort, err := netip.ParseAddrPort(address)
-	if err != nil || !g.permits(addrPort.Addr().Unmap()) {
-		return errBlockedAddress
-	}
-	return nil
-}
-
-func (g addressGuard) permits(addr netip.Addr) bool {
-	for _, prefix := range g.allowed {
-		if prefix.Contains(addr) {
-			return true
-		}
-	}
-	return isPublic(addr)
-}
-
-func isPublic(addr netip.Addr) bool {
-	if !addr.IsGlobalUnicast() || addr.IsPrivate() {
-		return false
-	}
-	for _, prefix := range blockedPrefixes {
-		if prefix.Contains(addr) {
-			return false
-		}
-	}
-	return true
 }
 
 func checkRedirect(req *http.Request, via []*http.Request) error {
@@ -185,7 +138,7 @@ func (f *fetcher) explain(err error) error {
 	switch {
 	case errors.As(err, &fetchErr):
 		return fetchErr
-	case errors.Is(err, errBlockedAddress):
+	case errors.Is(err, netguard.ErrBlocked):
 		return &FetchError{Message: "the media_url leads to a private, loopback or link-local address, so it was not fetched"}
 	case errors.Is(err, context.DeadlineExceeded), errors.As(err, &netErr) && netErr.Timeout():
 		return &FetchError{Message: fmt.Sprintf("the media_url did not answer within %s", f.timeout)}

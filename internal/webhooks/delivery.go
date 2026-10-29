@@ -75,7 +75,7 @@ func (d *Dispatcher) post(ctx context.Context, a attempt) (Post, error) {
 		ID:        deliveryID(a.delivery),
 		Timestamp: a.at,
 		Body:      encoded,
-		Secrets:   []string{a.webhook.Secret},
+		Secrets:   SigningSecrets(a.webhook, a.at),
 		Headers:   a.webhook.Headers,
 	}, err
 }

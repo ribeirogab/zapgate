@@ -16,6 +16,21 @@ func (h *handler) registerWebhookRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /webhooks", h.serve(h.listWebhooks))
 	mux.HandleFunc("DELETE /webhooks/{name}", h.serve(h.removeWebhook))
 	mux.HandleFunc("POST /webhooks/{name}/test", h.serve(h.testWebhook))
+	mux.HandleFunc("POST /webhooks/{name}/secret", h.serve(h.rotateWebhookSecret))
+}
+
+func (h *handler) rotateWebhookSecret(r *http.Request) (any, error) {
+	name := r.PathValue("name")
+	rotated, err := h.deps.Webhooks.RotateSecret(r.Context(), name)
+	if err != nil {
+		return nil, webhookError(name, err)
+	}
+	h.deps.Audit.WebhookAction(r.Context(), audit.ActionWebhookRotate, rotated.Name)
+	return RotatedWebhookSecret{
+		Name:                rotated.Name,
+		Secret:              rotated.Secret,
+		PreviousSecretUntil: rotated.PreviousSecretUntil.UTC().Format(time.RFC3339),
+	}, nil
 }
 
 func (h *handler) addWebhook(r *http.Request) (any, error) {
@@ -69,8 +84,11 @@ func (h *handler) testWebhook(r *http.Request) (any, error) {
 }
 
 func testResult(result webhooks.Result) string {
-	if result.Accepted() {
+	switch {
+	case result.Accepted():
 		return audit.ResultOK
+	case result.Blocked():
+		return audit.ResultBlocked
 	}
 	return audit.ResultError
 }

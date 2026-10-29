@@ -29,6 +29,7 @@ const (
 	ActionWebhookAdd       = "webhook_add"
 	ActionWebhookRemove    = "webhook_remove"
 	ActionWebhookTest      = "webhook_test"
+	ActionWebhookRotate    = "webhook_rotate_secret"
 	RetentionDefault       = "default"
 )
 
