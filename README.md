@@ -84,7 +84,7 @@ Every write needs your approval. See [Tools](docs/tools.md) for the inputs, the 
 - [Clients](docs/clients.md): Claude Code, Claude Desktop, claude.ai, ChatGPT, Codex, Cursor and bots
 - [Tools](docs/tools.md): tools, file uploads and limits
 - [Security](docs/security.md): the risks and how zapgate handles them
-- [Glossary](CONTEXT.md) and [decisions](docs/adr/)
+- [Glossary](GLOSSARY.md) and [decisions](docs/adr/)
 
 ## License
 

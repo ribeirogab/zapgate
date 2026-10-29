@@ -21,7 +21,7 @@ cd deploy && ./init-env.sh && docker compose up -d --build
 - Format with `gofmt`, and keep `go vet ./...` clean.
 - No comments in code. Names and small functions explain the code.
 - A change in behavior comes with a test in `internal/app` through the harness.
-- The words in [CONTEXT.md](CONTEXT.md) have one meaning. Use them in code, output and docs.
+- The words in [GLOSSARY.md](GLOSSARY.md) have one meaning. Use them in code, output and docs.
 - Program output, tool descriptions and docs are in English, in short and simple sentences.
 
 ## Commits and pull requests
