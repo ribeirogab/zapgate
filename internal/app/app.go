@@ -47,6 +47,7 @@ type Deps struct {
 	Audit        io.Writer
 	Log          *slog.Logger
 	Transcoder   media.Transcoder
+	Resolver     webhooks.Resolver
 }
 
 var (
@@ -112,6 +113,7 @@ func New(ctx context.Context, cfg Config, deps Deps) (*App, error) {
 
 func (a *App) wire(deps Deps, outbox *media.Outbox) {
 	auditLog := audit.New(deps.Audit, deps.Clock)
+	hosts := resolver(deps)
 	ingester := ingest.New(a.store, deps.Log)
 	var downloads *media.Downloader
 	manager := accounts.New(accounts.Deps{
@@ -175,7 +177,7 @@ func (a *App) wire(deps Deps, outbox *media.Outbox) {
 		OwnerPassword: a.cfg.OwnerPassword,
 		Media:         a.media,
 		Retention:     expiry,
-		Webhooks:      webhooks.NewRegistry(webhooks.RegistryDeps{Store: a.store, Clock: deps.Clock, Sender: webhooks.NewSender()}),
+		Webhooks:      webhooks.NewRegistry(webhooks.RegistryDeps{Store: a.store, Clock: deps.Clock, Sender: webhooks.NewSender(hosts), Resolver: hosts}),
 
 		DefaultRetentionMonths: a.cfg.RetentionMonths,
 	})
@@ -186,6 +188,13 @@ func transcoder(deps Deps) media.Transcoder {
 		return media.FFmpeg{}
 	}
 	return deps.Transcoder
+}
+
+func resolver(deps Deps) webhooks.Resolver {
+	if deps.Resolver == nil {
+		return net.DefaultResolver
+	}
+	return deps.Resolver
 }
 
 func health(w http.ResponseWriter, _ *http.Request) {
