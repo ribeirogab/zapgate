@@ -180,6 +180,7 @@ func (h *Harness) start(t testing.TB) {
 	r := &running{app: a, cancel: cancel, done: make(chan error, 1)}
 	go func() { r.done <- a.Serve(ctx, public, owner) }()
 	h.running = r
+	h.awaitReconnection(t)
 }
 
 func (h *Harness) listen(t testing.TB) (net.Listener, net.Listener) {
