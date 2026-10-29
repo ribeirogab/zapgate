@@ -28,6 +28,7 @@ type Answer struct {
 	Status  int
 	Header  http.Header
 	Endless bool
+	Hold    <-chan struct{}
 }
 
 func Reply(status int) Answer {
@@ -40,6 +41,10 @@ func Redirect(status int, location string) Answer {
 
 func EndlessBody(status int) Answer {
 	return Answer{Status: status, Endless: true}
+}
+
+func Held(release <-chan struct{}, status int) Answer {
+	return Answer{Status: status, Hold: release}
 }
 
 type Received struct {
@@ -142,6 +147,12 @@ func (r *Receiver) next() Answer {
 }
 
 func (r *Receiver) answer(w http.ResponseWriter, req *http.Request, answer Answer) {
+	if answer.Hold != nil {
+		select {
+		case <-answer.Hold:
+		case <-req.Context().Done():
+		}
+	}
 	for name, values := range answer.Header {
 		w.Header()[name] = values
 	}

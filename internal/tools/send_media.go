@@ -99,7 +99,7 @@ func (r *Registry) deliverMedia(ctx context.Context, s sendTarget, plan mediaPla
 	msg := s.sentMessage(resp, plan.kind, plan.caption)
 	msg.Media = plan.stored(ready, up)
 	msg.Media.Path = r.keepSent(s, ready)
-	if err := r.deps.Store.SaveMessage(ctx, s.account.ID, s.chat, msg); err != nil {
+	if err := r.deps.Store.SaveMessage(ctx, s.account.ID, s.chat, msg, r.deps.Clock.Now()); err != nil {
 		r.logUnsaved(s.writeTarget, sendMediaName, errors.Join(err, r.forget(msg.Media.Path)))
 	}
 	return nil, sendMediaOutput{writeResult: s.result(s.chat, verdict), MessageID: resp.ID, SentAt: timestamp(resp.Timestamp), Kind: plan.kind}, nil

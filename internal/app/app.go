@@ -114,7 +114,9 @@ func New(ctx context.Context, cfg Config, deps Deps) (*App, error) {
 func (a *App) wire(deps Deps, outbox *media.Outbox) {
 	auditLog := audit.New(deps.Audit, deps.Clock)
 	hosts := resolver(deps)
-	ingester := ingest.New(a.store, deps.Log)
+	ingester := ingest.New(a.store, deps.Clock, deps.Log)
+	sender := webhooks.NewSender(hosts)
+	dispatcher := webhooks.NewDispatcher(webhooks.DispatcherDeps{Store: a.store, Sender: sender, Clock: deps.Clock, Audit: auditLog, Log: deps.Log})
 	var downloads *media.Downloader
 	manager := accounts.New(accounts.Deps{
 		Store:    a.store,
@@ -125,6 +127,7 @@ func (a *App) wire(deps Deps, outbox *media.Outbox) {
 		Ingest: func(ctx context.Context, accountID int64, client whatsapp.Client, evt any) {
 			ingester.Handle(ctx, ingest.Source{AccountID: accountID, Client: client}, evt)
 			downloads.Notice(accountID, evt)
+			dispatcher.Notice(evt)
 		},
 		Removed: func(_ context.Context, account store.Account) error { return a.media.RemoveAccount(account.ID) },
 	})
@@ -167,7 +170,7 @@ func (a *App) wire(deps Deps, outbox *media.Outbox) {
 	}).Register(mux)
 	a.public = audit.WithClientIP(a.cfg.ClientIPHeader, mux)
 	expiry := retention.New(retention.Deps{Store: a.store, Files: a.media, Clock: deps.Clock, Log: deps.Log, DefaultMonths: a.cfg.RetentionMonths})
-	a.workers = append(a.workers, manager.Run, downloads.Run, outbox.Run, expiry.Run)
+	a.workers = append(a.workers, manager.Run, downloads.Run, outbox.Run, expiry.Run, dispatcher.Run)
 	a.owner = admin.Handler(admin.Deps{
 		Store:         a.store,
 		Accounts:      manager,
@@ -177,7 +180,7 @@ func (a *App) wire(deps Deps, outbox *media.Outbox) {
 		OwnerPassword: a.cfg.OwnerPassword,
 		Media:         a.media,
 		Retention:     expiry,
-		Webhooks:      webhooks.NewRegistry(webhooks.RegistryDeps{Store: a.store, Clock: deps.Clock, Sender: webhooks.NewSender(hosts), Resolver: hosts}),
+		Webhooks:      webhooks.NewRegistry(webhooks.RegistryDeps{Store: a.store, Clock: deps.Clock, Sender: sender, Resolver: hosts}),
 
 		DefaultRetentionMonths: a.cfg.RetentionMonths,
 	})
