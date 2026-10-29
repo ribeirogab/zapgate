@@ -136,11 +136,27 @@ zapgate serve
 
 ## Updates
 
+The compose file uses the image `ghcr.io/ribeirogab/zapgate:latest`. To get the latest release:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+To stay on one version, set it in `deploy/.env`, without the `v`:
+
+```bash
+ZAPGATE_VERSION=0.1.0
+```
+
+To run the code of `main` instead of a release:
+
 ```bash
 git pull && docker compose up -d --build
 ```
 
 Update at least once a month. WhatsApp shows an "outdated client" warning to an old linked device and can disconnect it.
+
+The database changes of a new version run when zapgate starts, and they only go forward. Make a backup before an update, because an older version cannot go back to the old database.
 
 ## Data and backups
 
