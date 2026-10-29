@@ -30,6 +30,7 @@ const (
   zapgate webhooks list
   zapgate webhooks remove <name>
   zapgate webhooks test <name>
+  zapgate webhooks rotate-secret <name>
   zapgate password
 `
 )

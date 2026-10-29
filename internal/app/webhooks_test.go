@@ -282,6 +282,8 @@ func TestWebhooksUsageErrors(t *testing.T) {
 		{"webhooks", "remove", "support-bot", "sales-bot"},
 		{"webhooks", "test"},
 		{"webhooks", "test", "support-bot", "sales-bot"},
+		{"webhooks", "rotate-secret"},
+		{"webhooks", "rotate-secret", "support-bot", "sales-bot"},
 	}
 	for _, args := range cases {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {

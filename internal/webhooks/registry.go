@@ -114,7 +114,7 @@ func (r *Registry) Test(ctx context.Context, name string) (store.Webhook, Result
 		ID:        newTestID(),
 		Timestamp: now,
 		Body:      body,
-		Secrets:   []string{webhook.Secret},
+		Secrets:   SigningSecrets(webhook, now),
 		Headers:   webhook.Headers,
 	})
 	return webhook, result, nil

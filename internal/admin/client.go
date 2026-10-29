@@ -170,6 +170,12 @@ func (c *Client) TestWebhook(ctx context.Context, name string) (WebhookTest, err
 	return out, err
 }
 
+func (c *Client) RotateWebhookSecret(ctx context.Context, name string) (RotatedWebhookSecret, error) {
+	var out RotatedWebhookSecret
+	err := c.call(ctx, http.MethodPost, "/webhooks/"+url.PathEscape(name)+"/secret", nil, &out)
+	return out, err
+}
+
 func (c *Client) call(ctx context.Context, method, path string, in, out any) error {
 	req, err := newRequest(ctx, method, path, in)
 	if err != nil {

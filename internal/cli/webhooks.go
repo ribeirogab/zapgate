@@ -16,10 +16,11 @@ const (
 
 func webhooks(ctx context.Context, args []string, std IO) error {
 	cmd, rest, err := subcommand(args, map[string]command{
-		"add":    webhooksAdd,
-		"list":   webhooksList,
-		"remove": webhooksRemove,
-		"test":   webhooksTest,
+		"add":           webhooksAdd,
+		"list":          webhooksList,
+		"remove":        webhooksRemove,
+		"test":          webhooksTest,
+		"rotate-secret": webhooksRotateSecret,
 	})
 	if err != nil {
 		return err
@@ -78,9 +79,13 @@ func webhooksAdd(ctx context.Context, args []string, std IO) error {
 	}
 	w := created.Webhook
 	fmt.Fprintf(std.Stdout, "created the webhook %s (accounts: %s, events: %s, content: %s)\n", w.Name, listOrNone(w.Accounts), strings.Join(w.Events, ","), w.Content)
-	fmt.Fprintf(std.Stdout, "secret: %s\n", created.Secret)
-	fmt.Fprintln(std.Stdout, "this is the only time the secret is shown; store it now")
+	printSecretOnce(std, created.Secret)
 	return nil
+}
+
+func printSecretOnce(std IO, secret string) {
+	fmt.Fprintf(std.Stdout, "secret: %s\n", secret)
+	fmt.Fprintln(std.Stdout, "this is the only time the secret is shown; store it now")
 }
 
 func webhooksList(ctx context.Context, args []string, std IO) error {
@@ -130,6 +135,19 @@ func webhooksTest(ctx context.Context, args []string, std IO) error {
 		return fmt.Errorf("%s", answer)
 	}
 	fmt.Fprintln(std.Stdout, answer)
+	return nil
+}
+
+func webhooksRotateSecret(ctx context.Context, args []string, std IO) error {
+	if len(args) != 1 {
+		return errUsage
+	}
+	rotated, err := ownerClient(std).RotateWebhookSecret(ctx, args[0])
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(std.Stdout, "rotated the secret of the webhook %s; the old secret also signs until %s\n", rotated.Name, rotated.PreviousSecretUntil)
+	printSecretOnce(std, rotated.Secret)
 	return nil
 }
 
