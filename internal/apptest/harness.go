@@ -129,6 +129,8 @@ func (h *Harness) defaultConfig() config.Config {
 			"ZAPGATE_PUBLIC_URL":     PublicURL,
 			"ZAPGATE_OWNER_PASSWORD": OwnerPassword,
 			"ZAPGATE_SIGNING_KEY":    signingKeyHex,
+
+			"ZAPGATE_CLIENT_IP_HEADER": "CF-Connecting-IP",
 		}[key]
 	})
 	if err != nil {

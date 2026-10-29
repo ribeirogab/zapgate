@@ -90,14 +90,7 @@ func (e *Endpoint) RequireBearer(next http.Handler) http.Handler {
 		ResourceMetadataURL:    e.deps.PublicURL + oauth.ProtectedResourcePath,
 		AllowMissingExpiration: true,
 	})
-	return e.withClientIP(e.auditMissingToken(bearer(next)))
-}
-
-func (e *Endpoint) withClientIP(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.Header.Set(audit.ClientIPHeader, audit.ClientIP(r))
-		next.ServeHTTP(w, r)
-	})
+	return e.auditMissingToken(bearer(next))
 }
 
 func (e *Endpoint) auditMissingToken(next http.Handler) http.Handler {

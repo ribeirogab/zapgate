@@ -33,6 +33,9 @@ func TestFromEnvAppliesDefaults(t *testing.T) {
 	if cfg.PublicURL != "https://wpp.example.test" {
 		t.Fatalf("public URL %q keeps the trailing slash", cfg.PublicURL)
 	}
+	if cfg.ClientIPHeader != "" {
+		t.Fatalf("client IP header %q is trusted by default", cfg.ClientIPHeader)
+	}
 	if len(cfg.SigningKey) != 32 {
 		t.Fatalf("signing key has %d bytes", len(cfg.SigningKey))
 	}
@@ -62,5 +65,19 @@ func TestFromEnvRejectsBadValues(t *testing.T) {
 				t.Fatalf("error %v, want %q", err, tc.message)
 			}
 		})
+	}
+}
+
+func TestFromEnvReadsTheTrustedClientIPHeader(t *testing.T) {
+	values := required()
+	values["ZAPGATE_CLIENT_IP_HEADER"] = " CF-Connecting-IP "
+
+	cfg, err := config.FromEnv(env(values))
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ClientIPHeader != "CF-Connecting-IP" {
+		t.Fatalf("client IP header %q", cfg.ClientIPHeader)
 	}
 }

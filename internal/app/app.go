@@ -162,7 +162,7 @@ func (a *App) wire(deps Deps, outbox *media.Outbox) {
 		OwnerPassword: a.cfg.OwnerPassword,
 		Log:           deps.Log,
 	}).Register(mux)
-	a.public = mux
+	a.public = audit.WithClientIP(a.cfg.ClientIPHeader, mux)
 	expiry := retention.New(retention.Deps{Store: a.store, Files: a.media, Clock: deps.Clock, Log: deps.Log, DefaultMonths: a.cfg.RetentionMonths})
 	a.workers = append(a.workers, manager.Run, downloads.Run, outbox.Run, expiry.Run)
 	a.owner = admin.Handler(admin.Deps{

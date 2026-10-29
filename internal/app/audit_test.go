@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ribeirogab/zapgate/internal/apptest"
+	"github.com/ribeirogab/zapgate/internal/config"
 )
 
 func linesWithMessage(lines []map[string]any, msg string) []map[string]any {
@@ -173,6 +174,41 @@ func TestUnauthorizedRequestUsesTheTunnelClientIP(t *testing.T) {
 		t.Fatalf("audit has %d auth lines, want 1", len(denied))
 	}
 	assertFields(t, denied[0], map[string]string{"ip": "203.0.113.99"})
+}
+
+func TestUnauthorizedRequestIgnoresClientIPHeadersWhenNoneIsTrusted(t *testing.T) {
+	h := apptest.Start(t, apptest.WithConfig(func(cfg *config.Config) { cfg.ClientIPHeader = "" }))
+	req, err := http.NewRequest(http.MethodPost, h.URL+"/mcp", strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("CF-Connecting-IP", "203.0.113.99")
+	req.Header.Set("X-Zapgate-Client-Ip", "203.0.113.98")
+
+	h.Do(t, req)
+
+	denied := linesWithMessage(h.AuditLines(t), "auth")
+	if len(denied) != 1 {
+		t.Fatalf("audit has %d auth lines, want 1", len(denied))
+	}
+	assertFields(t, denied[0], map[string]string{"ip": "127.0.0.1"})
+}
+
+func TestUnauthorizedRequestCannotSetTheResolvedClientIP(t *testing.T) {
+	h := apptest.Start(t)
+	req, err := http.NewRequest(http.MethodPost, h.URL+"/mcp", strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Zapgate-Client-Ip", "203.0.113.98")
+
+	h.Do(t, req)
+
+	denied := linesWithMessage(h.AuditLines(t), "auth")
+	if len(denied) != 1 {
+		t.Fatalf("audit has %d auth lines, want 1", len(denied))
+	}
+	assertFields(t, denied[0], map[string]string{"ip": "127.0.0.1"})
 }
 
 func TestHealthzAnswersOkWithoutAudit(t *testing.T) {

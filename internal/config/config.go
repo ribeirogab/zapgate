@@ -28,6 +28,7 @@ type Config struct {
 	Listen          string
 	AdminSocket     string
 	PublicURL       string
+	ClientIPHeader  string
 	OwnerPassword   string
 	SigningKey      []byte
 	RetentionMonths int
@@ -44,6 +45,8 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		Listen:      ListenFromEnv(getenv),
 		AdminSocket: AdminSocketFromEnv(getenv),
 		PublicURL:   strings.TrimRight(getenv("ZAPGATE_PUBLIC_URL"), "/"),
+
+		ClientIPHeader: strings.TrimSpace(getenv("ZAPGATE_CLIENT_IP_HEADER")),
 
 		ApprovalTimeout: DefaultApprovalTimeout,
 		ApprovalPing:    DefaultApprovalPing,

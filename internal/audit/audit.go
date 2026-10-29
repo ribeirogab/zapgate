@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	ClientIPHeader         = "CF-Connecting-IP"
+	ClientIPHeader         = "X-Zapgate-Client-Ip"
 	ResultOK               = "ok"
 	ResultError            = "error"
 	ResultInputRequired    = "input_required"
@@ -133,10 +133,31 @@ func (l *Logger) write(ctx context.Context, msg string, attrs ...slog.Attr) {
 	l.handler.Handle(ctx, record)
 }
 
+func WithClientIP(trustedHeader string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Header.Set(ClientIPHeader, resolveClientIP(r, trustedHeader))
+		next.ServeHTTP(w, r)
+	})
+}
+
 func ClientIP(r *http.Request) string {
 	if ip, ok := parseIP(r.Header.Get(ClientIPHeader)); ok {
 		return ip
 	}
+	return peerIP(r)
+}
+
+func resolveClientIP(r *http.Request, trustedHeader string) string {
+	if trustedHeader == "" {
+		return peerIP(r)
+	}
+	if ip, ok := parseIP(r.Header.Get(trustedHeader)); ok {
+		return ip
+	}
+	return peerIP(r)
+}
+
+func peerIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr
