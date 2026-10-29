@@ -165,6 +165,23 @@ func (s *Store) DeleteWebhook(ctx context.Context, name string) (Webhook, error)
 	return webhook, err
 }
 
+func (s *Store) RotateWebhookSecret(ctx context.Context, name, secret string, previousSecretUntil time.Time) (Webhook, error) {
+	var webhook Webhook
+	err := s.inTx(ctx, func(tx *sql.Tx) error {
+		result, err := tx.ExecContext(ctx, `UPDATE webhooks SET previous_secret = secret, previous_secret_until = ?, secret = ? WHERE name = ?`,
+			millis(previousSecretUntil), secret, name)
+		if err != nil {
+			return err
+		}
+		if changed, err := result.RowsAffected(); err != nil || changed == 0 {
+			return errors.Join(ErrNotFound, err)
+		}
+		webhook, err = webhookWhere(ctx, tx, `w.name = ?`, name)
+		return err
+	})
+	return webhook, err
+}
+
 func webhookWhere(ctx context.Context, q rowQueryer, where string, args ...any) (Webhook, error) {
 	webhook, err := scanWebhook(q.QueryRowContext(ctx, `SELECT `+webhookColumns+` FROM webhooks w WHERE `+where, args...))
 	if errors.Is(err, sql.ErrNoRows) {
