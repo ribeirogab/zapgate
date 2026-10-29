@@ -200,10 +200,14 @@ func ensureNameFree(ctx context.Context, tx *sql.Tx, name string) error {
 }
 
 func grantedAccountIDs(ctx context.Context, tx *sql.Tx, n NewGrant) ([]int64, error) {
-	if n.AllExistingAccounts {
+	return chosenAccountIDs(ctx, tx, n.AllExistingAccounts, n.AccountNames)
+}
+
+func chosenAccountIDs(ctx context.Context, tx *sql.Tx, allExisting bool, names []string) ([]int64, error) {
+	if allExisting {
 		return allAccountIDs(ctx, tx)
 	}
-	return accountIDsByName(ctx, tx, n.AccountNames)
+	return accountIDsByName(ctx, tx, names)
 }
 
 func allAccountIDs(ctx context.Context, tx *sql.Tx) ([]int64, error) {

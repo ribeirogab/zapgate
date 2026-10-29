@@ -247,17 +247,25 @@ func accessRevoke(ctx context.Context, args []string, std IO) error {
 }
 
 func createdAccountsLabel(a admin.AccessView) string {
-	if len(a.Accounts) == 0 {
-		return noAccountsLabel
-	}
-	return strings.Join(a.Accounts, ",")
+	return listOrNone(a.Accounts)
 }
 
 func accountsLabel(a admin.AccessView) string {
-	if len(a.Accounts) == 0 {
+	return listOrDash(a.Accounts)
+}
+
+func listOrNone(values []string) string {
+	if len(values) == 0 {
+		return noAccountsLabel
+	}
+	return strings.Join(values, ",")
+}
+
+func listOrDash(values []string) string {
+	if len(values) == 0 {
 		return noValue
 	}
-	return strings.Join(a.Accounts, ",")
+	return strings.Join(values, ",")
 }
 
 func mode(a admin.AccessView) string {

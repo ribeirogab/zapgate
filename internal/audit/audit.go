@@ -26,6 +26,9 @@ const (
 	ActionAccountDescribe  = "account_describe"
 	ActionAccountRemove    = "account_remove"
 	ActionAccountRetention = "account_retention"
+	ActionWebhookAdd       = "webhook_add"
+	ActionWebhookRemove    = "webhook_remove"
+	ActionWebhookTest      = "webhook_test"
 	RetentionDefault       = "default"
 )
 
@@ -124,6 +127,22 @@ func (l *Logger) AccountRetention(ctx context.Context, account, retention string
 		slog.String("action", ActionAccountRetention),
 		slog.String("account", account),
 		slog.String("retention", retention),
+	)
+}
+
+func (l *Logger) WebhookAction(ctx context.Context, action, webhook string) {
+	l.write(ctx, "admin",
+		slog.String("action", action),
+		slog.String("webhook", webhook),
+	)
+}
+
+func (l *Logger) WebhookTest(ctx context.Context, webhook string, status int, result string) {
+	l.write(ctx, "admin",
+		slog.String("action", ActionWebhookTest),
+		slog.String("webhook", webhook),
+		slog.Int("status", status),
+		slog.String("result", result),
 	)
 }
 

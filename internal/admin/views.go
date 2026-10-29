@@ -100,6 +100,44 @@ type SetAccessRequest struct {
 	Approval            string   `json:"approval,omitempty"`
 }
 
+type AddWebhookRequest struct {
+	Name                string   `json:"name"`
+	URL                 string   `json:"url"`
+	Accounts            []string `json:"accounts"`
+	AllExistingAccounts bool     `json:"all_existing_accounts"`
+}
+
+type WebhookView struct {
+	Name      string   `json:"name"`
+	URL       string   `json:"url"`
+	Accounts  []string `json:"accounts"`
+	Events    []string `json:"events"`
+	Chats     string   `json:"chats"`
+	Content   string   `json:"content"`
+	Format    string   `json:"format"`
+	State     string   `json:"state"`
+	CreatedAt string   `json:"created_at"`
+}
+
+type CreatedWebhook struct {
+	Webhook WebhookView `json:"webhook"`
+	Secret  string      `json:"secret"`
+}
+
+type RemovedWebhook struct {
+	Name string `json:"name"`
+}
+
+type WebhookTest struct {
+	Name   string `json:"name"`
+	Status int    `json:"status,omitempty"`
+	Error  string `json:"error,omitempty"`
+}
+
+type webhookListResponse struct {
+	Webhooks []WebhookView `json:"webhooks"`
+}
+
 type accountResponse struct {
 	Account AccountView `json:"account"`
 }
