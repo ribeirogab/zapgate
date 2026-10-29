@@ -92,3 +92,14 @@ func (h *Harness) AwaitAccountState(t testing.TB, name, state string) {
 		time.Sleep(5 * time.Millisecond)
 	}
 }
+
+func (h *Harness) awaitReconnection(t testing.TB) {
+	t.Helper()
+	deadline := time.Now().Add(waitTimeout)
+	for !h.WhatsApp.Reconnected() {
+		if time.Now().After(deadline) {
+			t.Fatal("the paired accounts did not reconnect after the start")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}

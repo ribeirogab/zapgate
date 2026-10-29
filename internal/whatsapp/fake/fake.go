@@ -244,8 +244,28 @@ func (w *World) connect(c *Client) error {
 		evt = &events.Disconnected{}
 	}
 	w.mu.Unlock()
-	go c.dispatch(evt)
+	go c.dispatchConnection(evt)
 	return nil
+}
+
+func (w *World) Reconnected() bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for _, dev := range w.devices {
+		if dev.local && !w.hasSettledClient(dev.jid) {
+			return false
+		}
+	}
+	return true
+}
+
+func (w *World) hasSettledClient(jid types.JID) bool {
+	for _, client := range w.clientsOf(jid) {
+		if client.settled {
+			return true
+		}
+	}
+	return false
 }
 
 func (w *World) logout(c *Client) error {
@@ -418,6 +438,7 @@ type Client struct {
 	mu       sync.Mutex
 	jid      string
 	handlers []whatsapp.EventHandler
+	settled  bool
 }
 
 func (c *Client) Device() string { return c.device() }
@@ -473,6 +494,13 @@ func (c *Client) Logout(context.Context) error {
 
 func (c *Client) Disconnect() {
 	c.world.detach(c)
+}
+
+func (c *Client) dispatchConnection(evt any) {
+	c.dispatch(evt)
+	c.world.mu.Lock()
+	defer c.world.mu.Unlock()
+	c.settled = true
 }
 
 func (c *Client) dispatch(evt any) {
