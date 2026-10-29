@@ -62,7 +62,7 @@ func (r *Registry) handleSendMessage(ctx context.Context, req *mcp.CallToolReque
 	if err != nil {
 		return nil, sendMessageOutput{}, fmt.Errorf("WhatsApp did not accept the message, so it was not sent: %w", err)
 	}
-	r.logUnsaved(s.writeTarget, sendMessageName, r.deps.Store.SaveMessage(ctx, s.account.ID, s.chat, s.sentMessage(resp, store.MessageText, in.Text)))
+	r.logUnsaved(s.writeTarget, sendMessageName, r.deps.Store.SaveMessage(ctx, s.account.ID, s.chat, s.sentMessage(resp, store.MessageText, in.Text), r.deps.Clock.Now()))
 	return nil, sendMessageOutput{writeResult: s.result(s.chat, verdict), MessageID: resp.ID, SentAt: timestamp(resp.Timestamp)}, nil
 }
 

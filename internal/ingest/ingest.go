@@ -9,6 +9,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
+	"github.com/ribeirogab/zapgate/internal/clock"
 	"github.com/ribeirogab/zapgate/internal/store"
 	"github.com/ribeirogab/zapgate/internal/whatsapp"
 )
@@ -17,14 +18,15 @@ const groupNameTimeout = 5 * time.Second
 
 type Ingester struct {
 	store *store.Store
+	clock clock.Clock
 	log   *slog.Logger
 
 	mu     sync.Mutex
 	merged map[int64]map[types.JID]bool
 }
 
-func New(st *store.Store, log *slog.Logger) *Ingester {
-	return &Ingester{store: st, log: log, merged: map[int64]map[types.JID]bool{}}
+func New(st *store.Store, clk clock.Clock, log *slog.Logger) *Ingester {
+	return &Ingester{store: st, clock: clk, log: log, merged: map[int64]map[types.JID]bool{}}
 }
 
 type Source struct {
@@ -104,14 +106,17 @@ func (a *account) keep(evt *events.Message, fromHistory bool) {
 		Media:      content.media,
 		Details:    content.details,
 	}
-	save := a.store.SaveMessage
-	if fromHistory {
-		save = a.store.SaveHistoryMessage
-	}
-	a.save(save(a.ctx, a.src.AccountID, chat, msg))
+	a.save(a.saveMessage(chat, msg, fromHistory))
 	if evt.IsEdit {
 		a.save(a.store.EditMessage(a.ctx, a.src.AccountID, msg.ChatJID, msg.ID, msg.SenderJID, msg.Text, msg.SentAt))
 	}
+}
+
+func (a *account) saveMessage(chat store.Chat, msg store.Message, fromHistory bool) error {
+	if fromHistory {
+		return a.store.SaveHistoryMessage(a.ctx, a.src.AccountID, chat, msg)
+	}
+	return a.store.SaveMessage(a.ctx, a.src.AccountID, chat, msg, a.clock.Now())
 }
 
 func (a *account) chatJID(info types.MessageInfo) types.JID {

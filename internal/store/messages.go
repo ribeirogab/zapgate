@@ -43,15 +43,20 @@ FROM messages m
 LEFT JOIN media d ON d.account_id = m.account_id AND d.chat_jid = m.chat_jid AND d.message_id = m.id
 LEFT JOIN message_details x ON x.account_id = m.account_id AND x.chat_jid = m.chat_jid AND x.message_id = m.id`
 
-func (s *Store) SaveMessage(ctx context.Context, accountID int64, chat Chat, msg Message) error {
-	return s.saveMessage(ctx, accountID, chat, msg, true)
+func (s *Store) SaveMessage(ctx context.Context, accountID int64, chat Chat, msg Message, savedAt time.Time) error {
+	return s.saveMessage(ctx, accountID, chat, msg, func(tx *sql.Tx) error {
+		if err := countUnread(ctx, tx, accountID, msg); err != nil {
+			return err
+		}
+		return journalReceived(ctx, tx, accountID, msg, savedAt)
+	})
 }
 
 func (s *Store) SaveHistoryMessage(ctx context.Context, accountID int64, chat Chat, msg Message) error {
-	return s.saveMessage(ctx, accountID, chat, msg, false)
+	return s.saveMessage(ctx, accountID, chat, msg, func(*sql.Tx) error { return nil })
 }
 
-func (s *Store) saveMessage(ctx context.Context, accountID int64, chat Chat, msg Message, live bool) error {
+func (s *Store) saveMessage(ctx context.Context, accountID int64, chat Chat, msg Message, afterInsert func(tx *sql.Tx) error) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {
 		chat.LastMessageAt = msg.SentAt
 		if err := upsertChat(ctx, tx, accountID, chat); err != nil {
@@ -64,10 +69,7 @@ func (s *Store) saveMessage(ctx context.Context, accountID int64, chat Chat, msg
 		if err := insertParts(ctx, tx, accountID, msg); err != nil {
 			return err
 		}
-		if !live {
-			return nil
-		}
-		return countUnread(ctx, tx, accountID, msg)
+		return afterInsert(tx)
 	})
 }
 
