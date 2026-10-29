@@ -124,6 +124,12 @@ type CreatedWebhook struct {
 	Secret  string      `json:"secret"`
 }
 
+type RotatedWebhookSecret struct {
+	Name                string `json:"name"`
+	Secret              string `json:"secret"`
+	PreviousSecretUntil string `json:"previous_secret_until"`
+}
+
 type RemovedWebhook struct {
 	Name string `json:"name"`
 }
