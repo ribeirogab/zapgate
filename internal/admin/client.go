@@ -146,6 +146,30 @@ func (c *Client) RevokeAccess(ctx context.Context, name string) (AccessView, err
 	return out.Access, err
 }
 
+func (c *Client) AddWebhook(ctx context.Context, req AddWebhookRequest) (CreatedWebhook, error) {
+	var out CreatedWebhook
+	err := c.call(ctx, http.MethodPost, "/webhooks", req, &out)
+	return out, err
+}
+
+func (c *Client) Webhooks(ctx context.Context) ([]WebhookView, error) {
+	var out webhookListResponse
+	err := c.call(ctx, http.MethodGet, "/webhooks", nil, &out)
+	return out.Webhooks, err
+}
+
+func (c *Client) RemoveWebhook(ctx context.Context, name string) (RemovedWebhook, error) {
+	var out RemovedWebhook
+	err := c.call(ctx, http.MethodDelete, "/webhooks/"+url.PathEscape(name), nil, &out)
+	return out, err
+}
+
+func (c *Client) TestWebhook(ctx context.Context, name string) (WebhookTest, error) {
+	var out WebhookTest
+	err := c.call(ctx, http.MethodPost, "/webhooks/"+url.PathEscape(name)+"/test", nil, &out)
+	return out, err
+}
+
 func (c *Client) call(ctx context.Context, method, path string, in, out any) error {
 	req, err := newRequest(ctx, method, path, in)
 	if err != nil {
