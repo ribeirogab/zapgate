@@ -2,6 +2,8 @@
 
 WhatsApp for AI agents, with a human in the loop.
 
+![An AI agent asks zapgate to send a WhatsApp message. The owner approves it, and the message arrives on the phone.](docs/assets/demo.svg)
+
 zapgate is a self-hosted [MCP](https://modelcontextprotocol.io) server that connects your AI agents to your WhatsApp accounts. Agents read chats, search messages and download media. With your approval, they also send, react, edit and delete.
 
 zapgate connects to WhatsApp as a linked device of each number, like WhatsApp Web, through the [whatsmeow](https://github.com/tulir/whatsmeow) library.

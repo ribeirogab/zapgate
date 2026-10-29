@@ -1,0 +1,330 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 500" width="960" height="500" role="img" aria-labelledby="title">
+  <title id="title">An AI agent asks zapgate to send a WhatsApp message. The owner approves it, and the message arrives on the phone.</title>
+  <style>
+    svg {
+      --bg: #fafaf9;
+      --border: #e7e5e4;
+      --tile: #ffffff;
+      --inset: #f5f5f4;
+      --text: #1c1917;
+      --muted: #78716c;
+      --line: #d6d3d1;
+      --accent: #16a34a;
+      --accent-text: #ffffff;
+      --hub: #1c1917;
+      --hub-text: #fafaf9;
+      --hub-muted: #a8a29e;
+      --phone: #292524;
+      --screen: #f5f5f4;
+      --avatar: #d6d3d1;
+      --bubble-in: #ffffff;
+      --bubble-out: #dcfce7;
+      --tick: #a8a29e;
+      --tick-read: #0284c7;
+      --cursor: #1c1917;
+      --cursor-edge: #ffffff;
+    }
+    @media (prefers-color-scheme: dark) {
+      svg {
+        --bg: #111113;
+        --border: #27272a;
+        --tile: #18181b;
+        --inset: #0c0c0e;
+        --text: #fafafa;
+        --muted: #a1a1aa;
+        --line: #3f3f46;
+        --accent: #4ade80;
+        --accent-text: #052e16;
+        --hub: #fafafa;
+        --hub-text: #18181b;
+        --hub-muted: #71717a;
+        --phone: #3f3f46;
+        --screen: #0c0c0e;
+        --avatar: #3f3f46;
+        --bubble-in: #27272a;
+        --bubble-out: #14532d;
+        --tick: #71717a;
+        --tick-read: #38bdf8;
+        --cursor: #fafafa;
+        --cursor-edge: #18181b;
+      }
+    }
+
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif; fill: var(--text); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace; font-size: 13px; }
+    .label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; fill: var(--muted); }
+    .name { font-size: 14px; font-weight: 600; }
+    .small { font-size: 12px; }
+    .muted { fill: var(--muted); }
+    .accent-fill { fill: var(--accent); }
+
+    .frame { fill: var(--bg); stroke: var(--border); }
+    .tile { fill: var(--tile); stroke: var(--border); }
+    .inset { fill: var(--inset); }
+    .dot { fill: var(--line); }
+    .wire { fill: none; stroke: var(--line); stroke-width: 1.5; }
+    .wire-on { fill: none; stroke: var(--accent); stroke-width: 2; }
+    .comet { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; stroke-dasharray: 16 200; opacity: 0; }
+    .comet-long { stroke-dasharray: 22 200; }
+    .ring { fill: none; stroke: var(--accent); stroke-width: 2; }
+    .hub { fill: var(--hub); }
+    .hub-name { font-size: 20px; font-weight: 700; fill: var(--hub-text); }
+    .hub-caption { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; fill: var(--hub-muted); }
+    .glow { fill: none; stroke: var(--accent); stroke-width: 3; opacity: 0; }
+    .card { fill: var(--tile); stroke: var(--border); }
+    .button { fill: var(--tile); stroke: var(--line); }
+    .button-accept { fill: var(--accent); }
+    .button-accept-text { font-size: 12px; font-weight: 600; fill: var(--accent-text); }
+    .phone { fill: var(--phone); }
+    .screen { fill: var(--screen); }
+    .avatar { fill: var(--avatar); }
+    .divider { stroke: var(--border); }
+    .bubble-in { fill: var(--bubble-in); }
+    .bubble-out { fill: var(--bubble-out); }
+    .tick { fill: none; stroke: var(--tick); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    .tick-read { stroke: var(--tick-read); }
+    .caret { fill: var(--text); opacity: 0.7; }
+    .cursor { fill: var(--cursor); stroke: var(--cursor-edge); stroke-width: 1.2; stroke-linejoin: round; }
+    .tagline { font-size: 17px; font-weight: 600; }
+
+    .a { animation-duration: 10s; animation-iteration-count: infinite; animation-timing-function: ease-in-out; }
+    .box { transform-box: fill-box; }
+
+    .typing { transform: translateX(187px); animation-name: typing; }
+    .prompt { animation-name: prompt; }
+    .blink { animation: blink 1s linear infinite; }
+    .active { opacity: 1; animation-name: active; }
+    .comet-ask { animation-name: comet-ask; }
+    .glow { animation-name: glow; }
+    .approval { opacity: 0; transform-origin: center top; animation-name: approval; }
+    .pointer { opacity: 0; animation-name: pointer; }
+    .press { transform-origin: 0 0; animation-name: press; }
+    .accept { transform-origin: center; animation-name: accept; }
+    .comet-send { animation-name: comet-send; }
+    .wire-send { opacity: 1; animation-name: wire-send; }
+    .sent { transform-origin: right bottom; animation-name: sent; }
+    .read { animation-name: read; }
+    .flash { opacity: 0; animation-name: flash; }
+    .comet-all { animation-name: comet-all; }
+    .comet-all-send { animation-name: comet-all-send; }
+    .closing { animation-name: closing; }
+
+    @keyframes typing {
+      0% { transform: translateX(0); }
+      4% { transform: translateX(0); animation-timing-function: steps(24, end); }
+      18% { transform: translateX(187px); }
+      95% { transform: translateX(187px); }
+      96%, 100% { transform: translateX(0); }
+    }
+    @keyframes prompt {
+      0%, 92% { opacity: 1; }
+      94%, 97% { opacity: 0; }
+      99%, 100% { opacity: 1; }
+    }
+    @keyframes blink {
+      0%, 49% { opacity: 1; }
+      50%, 100% { opacity: 0; }
+    }
+    @keyframes active {
+      0%, 3% { opacity: 0; }
+      6%, 88% { opacity: 1; }
+      92%, 100% { opacity: 0; }
+    }
+    @keyframes comet-ask {
+      0%, 18% { stroke-dashoffset: 16; opacity: 0; }
+      18.5% { opacity: 1; }
+      27% { stroke-dashoffset: -100; opacity: 1; }
+      27.5%, 100% { stroke-dashoffset: -100; opacity: 0; }
+    }
+    @keyframes glow {
+      0%, 25% { opacity: 0; }
+      28%, 58% { opacity: 1; }
+      64%, 79% { opacity: 0; }
+      82%, 86% { opacity: 1; }
+      90%, 100% { opacity: 0; }
+    }
+    @keyframes approval {
+      0%, 28% { opacity: 0; transform: translateY(10px) scale(0.97); }
+      31%, 49% { opacity: 1; transform: translateY(0) scale(1); }
+      52%, 100% { opacity: 0; transform: translateY(-6px) scale(0.98); }
+    }
+    @keyframes pointer {
+      0%, 31% { opacity: 0; transform: translate(668px, 474px); }
+      33% { opacity: 1; transform: translate(660px, 468px); animation-timing-function: cubic-bezier(0.3, 0.7, 0.3, 1); }
+      43% { opacity: 1; transform: translate(566px, 412px); }
+      50% { opacity: 1; transform: translate(566px, 412px); }
+      53%, 100% { opacity: 0; transform: translate(566px, 412px); }
+    }
+    @keyframes press {
+      0%, 44% { transform: scale(1); }
+      45.5% { transform: scale(0.82); }
+      47%, 100% { transform: scale(1); }
+    }
+    @keyframes accept {
+      0%, 44.5% { transform: scale(1); }
+      46% { transform: scale(0.92); }
+      48%, 100% { transform: scale(1); }
+    }
+    @keyframes comet-send {
+      0%, 52% { stroke-dashoffset: 22; opacity: 0; }
+      52.5% { opacity: 1; }
+      61% { stroke-dashoffset: -100; opacity: 1; }
+      61.5%, 100% { stroke-dashoffset: -100; opacity: 0; }
+    }
+    @keyframes wire-send {
+      0%, 52% { opacity: 0; }
+      55%, 88% { opacity: 1; }
+      92%, 100% { opacity: 0; }
+    }
+    @keyframes sent {
+      0%, 61% { opacity: 0; transform: translateY(8px) scale(0.9); }
+      64.5%, 93% { opacity: 1; transform: translateY(0) scale(1); }
+      96%, 100% { opacity: 0; transform: translateY(0) scale(1); }
+    }
+    @keyframes read {
+      0%, 70% { opacity: 0; }
+      72%, 100% { opacity: 1; }
+    }
+    @keyframes flash {
+      0%, 72% { opacity: 0; }
+      74%, 79% { opacity: 1; }
+      85%, 100% { opacity: 0; }
+    }
+    @keyframes comet-all {
+      0%, 74% { stroke-dashoffset: 16; opacity: 0; }
+      74.5% { opacity: 1; }
+      82% { stroke-dashoffset: -100; opacity: 1; }
+      82.5%, 100% { stroke-dashoffset: -100; opacity: 0; }
+    }
+    @keyframes comet-all-send {
+      0%, 81% { stroke-dashoffset: 22; opacity: 0; }
+      81.5% { opacity: 1; }
+      88% { stroke-dashoffset: -100; opacity: 1; }
+      88.5%, 100% { stroke-dashoffset: -100; opacity: 0; }
+    }
+    @keyframes closing {
+      0%, 76% { opacity: 0; transform: translateY(6px); }
+      80%, 93% { opacity: 1; transform: translateY(0); }
+      97%, 100% { opacity: 0; transform: translateY(0); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .a, .blink { animation: none; }
+    }
+  </style>
+
+  <defs>
+    <clipPath id="prompt-area">
+      <rect x="76" y="132" width="210" height="32"/>
+    </clipPath>
+    <path id="wire-1" d="M300 132 C350 132 350 232 400 232"/>
+    <path id="wire-2" d="M300 224 C350 224 350 232 400 232"/>
+    <path id="wire-3" d="M300 290 C350 290 350 232 400 232"/>
+    <path id="wire-4" d="M300 356 C350 356 350 232 400 232"/>
+    <path id="wire-phone" d="M560 232 L690 232"/>
+  </defs>
+
+  <rect class="frame" x="0.5" y="0.5" width="959" height="499" rx="20"/>
+
+  <text class="label" x="40" y="62">AI AGENTS</text>
+  <text class="label" x="690" y="62">YOUR WHATSAPP</text>
+
+  <use class="wire" href="#wire-1"/>
+  <use class="wire" href="#wire-2"/>
+  <use class="wire" href="#wire-3"/>
+  <use class="wire" href="#wire-4"/>
+  <use class="wire" href="#wire-phone"/>
+  <use class="wire-on active a" href="#wire-1"/>
+  <use class="wire-on wire-send a" href="#wire-phone"/>
+
+  <path class="comet comet-ask a" d="M300 132 C350 132 350 232 400 232" pathLength="100"/>
+  <path class="comet comet-all a" d="M300 132 C350 132 350 232 400 232" pathLength="100"/>
+  <path class="comet comet-all a" d="M300 224 C350 224 350 232 400 232" pathLength="100"/>
+  <path class="comet comet-all a" d="M300 290 C350 290 350 232 400 232" pathLength="100"/>
+  <path class="comet comet-all a" d="M300 356 C350 356 350 232 400 232" pathLength="100"/>
+  <path class="comet comet-long comet-send a" d="M560 232 L690 232" pathLength="100"/>
+  <path class="comet comet-long comet-all-send a" d="M560 232 L690 232" pathLength="100"/>
+
+  <rect class="tile" x="40" y="80" width="260" height="104" rx="12"/>
+  <rect class="ring active a" x="40" y="80" width="260" height="104" rx="12"/>
+  <circle class="dot" cx="60" cy="104" r="4"/>
+  <circle class="accent-fill active a" cx="60" cy="104" r="4"/>
+  <text class="name" x="72" y="109">Claude Code</text>
+  <rect class="inset" x="52" y="126" width="236" height="44" rx="8"/>
+  <g class="prompt a">
+    <text class="mono accent-fill" x="64" y="153">&gt;</text>
+    <text class="mono" x="80" y="153">tell Ana I'm 10 min late</text>
+    <g clip-path="url(#prompt-area)">
+      <g class="typing a">
+        <rect class="inset" x="78" y="134" width="210" height="28"/>
+        <rect class="caret blink" x="79" y="141" width="8" height="16" rx="1"/>
+      </g>
+    </g>
+  </g>
+
+  <rect class="tile" x="40" y="198" width="260" height="52" rx="12"/>
+  <rect class="ring flash a" x="40" y="198" width="260" height="52" rx="12"/>
+  <circle class="dot" cx="60" cy="224" r="4"/>
+  <circle class="accent-fill flash a" cx="60" cy="224" r="4"/>
+  <text class="name" x="72" y="229">ChatGPT</text>
+
+  <rect class="tile" x="40" y="264" width="260" height="52" rx="12"/>
+  <rect class="ring flash a" x="40" y="264" width="260" height="52" rx="12"/>
+  <circle class="dot" cx="60" cy="290" r="4"/>
+  <circle class="accent-fill flash a" cx="60" cy="290" r="4"/>
+  <text class="name" x="72" y="295">Grok Bot</text>
+
+  <rect class="tile" x="40" y="330" width="260" height="52" rx="12"/>
+  <rect class="ring flash a" x="40" y="330" width="260" height="52" rx="12"/>
+  <circle class="dot" cx="60" cy="356" r="4"/>
+  <circle class="accent-fill flash a" cx="60" cy="356" r="4"/>
+  <text class="name" x="72" y="361">Your own agent</text>
+
+  <rect class="hub" x="400" y="196" width="160" height="72" rx="14"/>
+  <rect class="glow a" x="395" y="191" width="170" height="82" rx="18"/>
+  <text class="hub-name" x="480" y="234" text-anchor="middle">zapgate</text>
+  <text class="hub-caption" x="480" y="253" text-anchor="middle">MCP SERVER</text>
+
+  <g class="approval box a">
+    <line class="divider" x1="480" y1="268" x2="480" y2="292" stroke-width="1.5"/>
+    <rect class="card" x="340" y="292" width="280" height="146" rx="14"/>
+    <text class="name" x="360" y="321">Send this message?</text>
+    <text class="small muted" x="360" y="347">Account</text>
+    <text class="small" x="430" y="347">personal</text>
+    <text class="small muted" x="360" y="369">Chat</text>
+    <text class="small" x="430" y="369">Ana</text>
+    <text class="small muted" x="360" y="391">Text</text>
+    <text class="small" x="430" y="391">I'm 10 min late</text>
+    <rect class="button" x="452" y="402" width="76" height="26" rx="8"/>
+    <text class="small" x="490" y="419" text-anchor="middle">Decline</text>
+    <g class="accept box a">
+      <rect class="button-accept" x="536" y="402" width="68" height="26" rx="8"/>
+      <text class="button-accept-text" x="570" y="419" text-anchor="middle">Accept</text>
+    </g>
+  </g>
+
+  <rect class="phone" x="690" y="80" width="230" height="310" rx="30"/>
+  <rect class="screen" x="698" y="88" width="214" height="294" rx="23"/>
+  <rect class="phone" x="775" y="96" width="60" height="8" rx="4"/>
+  <circle class="avatar" cx="726" cy="130" r="13"/>
+  <text class="name" x="748" y="135">Ana</text>
+  <line class="divider" x1="698" y1="156" x2="912" y2="156"/>
+  <rect class="bubble-in" x="710" y="250" width="124" height="32" rx="10"/>
+  <text class="small" x="722" y="271">Where are you?</text>
+  <g class="sent box a">
+    <rect class="bubble-out" x="748" y="294" width="152" height="32" rx="10"/>
+    <text class="small" x="760" y="315">I'm 10 min late</text>
+    <path class="tick" d="M867 310.5 L870 313.5 L876 306.5 M872.5 312 L874 313.5 L880 306.5"/>
+    <path class="tick tick-read read a" d="M867 310.5 L870 313.5 L876 306.5 M872.5 312 L874 313.5 L880 306.5"/>
+  </g>
+  <rect class="bubble-in" x="710" y="340" width="190" height="30" rx="15"/>
+  <text class="small muted" x="726" y="359">Message</text>
+
+  <text class="tagline closing box a" x="480" y="476" text-anchor="middle">WhatsApp for AI agents, with a human in the loop.</text>
+
+  <g class="pointer a">
+    <g class="press box a">
+      <path class="cursor" d="M0 0 L0 17 L4.6 12.8 L7.6 19.6 L10.4 18.4 L7.4 11.8 L13.4 11.6 Z"/>
+    </g>
+  </g>
+</svg>
