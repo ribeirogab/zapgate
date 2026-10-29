@@ -60,6 +60,16 @@ type OwnerAction struct {
 	Approval string
 }
 
+type WebhookDelivery struct {
+	Webhook  string
+	Account  string
+	Delivery string
+	Events   int
+	Attempt  int
+	Status   int
+	Result   string
+}
+
 type Upload struct {
 	GrantID int64
 	Grant   string
@@ -143,6 +153,18 @@ func (l *Logger) WebhookTest(ctx context.Context, webhook string, status int, re
 		slog.String("webhook", webhook),
 		slog.Int("status", status),
 		slog.String("result", result),
+	)
+}
+
+func (l *Logger) WebhookDelivery(ctx context.Context, e WebhookDelivery) {
+	l.write(ctx, "webhook_delivery",
+		slog.String("webhook", e.Webhook),
+		slog.String("account", e.Account),
+		slog.String("delivery", e.Delivery),
+		slog.Int("events", e.Events),
+		slog.Int("attempt", e.Attempt),
+		slog.Int("status", e.Status),
+		slog.String("result", e.Result),
 	)
 }
 

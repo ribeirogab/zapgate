@@ -130,6 +130,10 @@ func (s *Store) WebhookByName(ctx context.Context, name string) (Webhook, error)
 	return webhookWhere(ctx, s.db, `w.name = ?`, name)
 }
 
+func (s *Store) Webhook(ctx context.Context, id int64) (Webhook, error) {
+	return webhookWhere(ctx, s.db, `w.id = ?`, id)
+}
+
 func (s *Store) ListWebhooks(ctx context.Context) ([]Webhook, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT `+webhookColumns+` FROM webhooks w ORDER BY w.name`)
 	if err != nil {
