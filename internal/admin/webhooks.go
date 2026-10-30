@@ -54,6 +54,7 @@ func (o WebhookOptions) options() webhooks.Options {
 		Accounts:            o.Accounts,
 		Chats:               o.Chats,
 		Events:              o.Events,
+		Content:             o.Content,
 	}
 }
 

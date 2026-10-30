@@ -13,6 +13,7 @@ const (
 	urlFlag          = "--url"
 	chatsFlag        = "--chats"
 	eventsFlag       = "--events"
+	contentFlag      = "--content"
 	noWebhookMessage = "no webhook yet"
 )
 
@@ -37,6 +38,7 @@ type webhookOptions struct {
 	accounts string
 	chats    string
 	events   string
+	content  string
 }
 
 func (o *webhookOptions) flags() map[string]*string {
@@ -45,6 +47,7 @@ func (o *webhookOptions) flags() map[string]*string {
 		accountsFlag: &o.accounts,
 		chatsFlag:    &o.chats,
 		eventsFlag:   &o.events,
+		contentFlag:  &o.content,
 	}
 }
 
@@ -87,7 +90,7 @@ func parseNamedArgs(args []string, values map[string]*string) (string, error) {
 }
 
 func (o webhookOptions) options() admin.WebhookOptions {
-	options := admin.WebhookOptions{URL: o.url, Chats: o.chats, Events: commaList(o.events)}
+	options := admin.WebhookOptions{URL: o.url, Chats: o.chats, Events: commaList(o.events), Content: o.content}
 	if o.accounts != "" {
 		options.AllExistingAccounts, options.Accounts = accountChoice(o.accounts)
 	}
@@ -185,6 +188,7 @@ var webhookColumns = []webhookColumn{
 	{header: "ACCOUNTS", value: func(w admin.WebhookView) string { return listOrDash(w.Accounts) }},
 	{header: "CHATS", value: chatsLabel},
 	{header: "EVENTS", value: func(w admin.WebhookView) string { return strings.Join(w.Events, ",") }},
+	{header: "CONTENT", value: func(w admin.WebhookView) string { return w.Content }},
 	{header: "STATE", value: func(w admin.WebhookView) string { return w.State }},
 }
 

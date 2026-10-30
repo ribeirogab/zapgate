@@ -80,6 +80,26 @@ func TestWebhooksSetKeepsTheOptionsItDoesNotGet(t *testing.T) {
 	}
 }
 
+func TestWebhooksSetChangesTheContentLevelForTheNextDelivery(t *testing.T) {
+	h := apptest.Start(t)
+	h.AddAccount(t, "work", workPhone, "Alex")
+	rx := h.StartReceiver(t)
+	addWebhook(t, h, rx, "support-bot", "work")
+
+	set := h.CLI(t, "webhooks", "set", "support-bot", "--content", "full")
+	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0M1", "Maria", morning), text("oi, tudo bem?")))
+
+	if set.Code != 0 || set.Stdout != "changed the webhook support-bot (accounts: work, chats: all, events: message.received, content: full)\n" {
+		t.Fatalf("exit %d, stdout %q, stderr %q", set.Code, set.Stdout, set.Stderr)
+	}
+	if body := string(rx.Await(t, 1)[0].Body); !strings.Contains(body, "oi, tudo bem?") {
+		t.Fatalf("the delivery after set --content full has no text: %s", body)
+	}
+	if row := listedWebhook(t, h, "support-bot"); row["CONTENT"] != "full" {
+		t.Fatalf("webhooks list %v", row)
+	}
+}
+
 func TestWebhooksSetMovesTheListedChatsToTheNewAccounts(t *testing.T) {
 	h := apptest.Start(t)
 	h.AddAccount(t, "work", workPhone, "Alex")
@@ -126,6 +146,7 @@ func TestWebhooksSetRejectsBadRequests(t *testing.T) {
 		{name: "unknown account", args: []string{"webhooks", "set", "support-bot", "--accounts", "work,sales"}, stderr: "zapgate: there is no account named \"sales\"\n"},
 		{name: "empty account list", args: []string{"webhooks", "set", "support-bot", "--accounts", ","}, stderr: "zapgate: the webhook needs a list of accounts, or all existing accounts\n"},
 		{name: "unknown event", args: []string{"webhooks", "set", "support-bot", "--events", "message.sent"}, stderr: "zapgate: the event \"message.sent\" is not known: use message.received or account.state\n"},
+		{name: "unknown content level", args: []string{"webhooks", "set", "support-bot", "--content", "everything"}, stderr: "zapgate: the content level \"everything\" is not valid: use minimal or full\n"},
 		{name: "bad chat", args: []string{"webhooks", "set", "support-bot", "--chats", "nobody"}, stderr: "zapgate: the chat \"nobody\" is not valid: use all, direct, groups, or a comma-separated list of phone numbers with the country code and JIDs\n"},
 		{name: "bad url", args: []string{"webhooks", "set", "support-bot", "--url", "ftp://bot.example.test/hook"}, stderr: "zapgate: the webhook URL \"ftp://bot.example.test/hook\" is not valid: use an http or https URL with a host\n"},
 		{name: "public http url", args: []string{"webhooks", "set", "support-bot", "--url", "http://bot.example.test/hook"}, stderr: "zapgate: the webhook URL \"http://bot.example.test/hook\" is not valid: the host bot.example.test does not resolve\n"},

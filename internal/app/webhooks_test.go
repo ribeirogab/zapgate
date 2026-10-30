@@ -54,7 +54,7 @@ func TestWebhooksAddShowsTheSecretOnce(t *testing.T) {
 		t.Fatalf("exit %d, stderr %q", listed.Code, listed.Stderr)
 	}
 	row := listedWebhook(t, h, "support-bot")
-	if len(tableRows(t, listed.Stdout)) != 2 || row["URL"] != botURL || row["ACCOUNTS"] != "work" || row["CHATS"] != "all" || row["EVENTS"] != "message.received" || row["STATE"] != "enabled" {
+	if len(tableRows(t, listed.Stdout)) != 2 || row["URL"] != botURL || row["ACCOUNTS"] != "work" || row["CHATS"] != "all" || row["EVENTS"] != "message.received" || row["CONTENT"] != "minimal" || row["STATE"] != "enabled" {
 		t.Fatalf("webhooks list %q", listed.Stdout)
 	}
 	if strings.Contains(listed.Stdout, secret) || strings.Contains(listed.Stdout, "whsec_") {

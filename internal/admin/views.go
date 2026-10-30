@@ -106,6 +106,7 @@ type WebhookOptions struct {
 	AllExistingAccounts bool     `json:"all_existing_accounts,omitempty"`
 	Chats               string   `json:"chats,omitempty"`
 	Events              []string `json:"events"`
+	Content             string   `json:"content,omitempty"`
 }
 
 type AddWebhookRequest struct {

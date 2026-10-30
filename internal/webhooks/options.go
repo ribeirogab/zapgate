@@ -16,6 +16,7 @@ type Options struct {
 	Accounts            []string
 	Chats               string
 	Events              []string
+	Content             string
 }
 
 type config struct {
@@ -46,6 +47,7 @@ func (o Options) apply(ctx context.Context, resolver Resolver, c config) (config
 	steps := []func(context.Context, *config) error{
 		o.applyEvents,
 		o.applyChats,
+		o.applyContent,
 	}
 	for _, step := range steps {
 		if err := step(ctx, &c); err != nil {
@@ -96,5 +98,16 @@ func (o Options) applyChats(ctx context.Context, c *config) error {
 		return err
 	}
 	c.webhook.Chats, c.chats = ChatsListed, chats
+	return nil
+}
+
+func (o Options) applyContent(_ context.Context, c *config) error {
+	if o.Content == "" {
+		return nil
+	}
+	if err := validateContent(o.Content); err != nil {
+		return err
+	}
+	c.webhook.Content = o.Content
 	return nil
 }

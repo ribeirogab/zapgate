@@ -1,17 +1,14 @@
 package tools
 
 import (
-	"strings"
-
 	"github.com/ribeirogab/zapgate/internal/store"
+	"github.com/ribeirogab/zapgate/internal/whatsapp"
 )
 
 const (
-	maxPollOptions    = 12
-	maxContactCards   = 20
-	maxPhonesPerCard  = 5
-	vcardPhonePrefix  = "TEL"
-	vcardWhatsAppAttr = "waid="
+	maxPollOptions   = 12
+	maxContactCards  = 20
+	maxPhonesPerCard = 5
 )
 
 type pollView struct {
@@ -46,38 +43,8 @@ func (c *thirdPartyContent) addDetails(details *store.Details) {
 		if i == maxContactCards {
 			break
 		}
-		c.Contacts = append(c.Contacts, contactCardView{Name: short(card.Name), Phones: vcardPhones(card.VCard)})
+		c.Contacts = append(c.Contacts, contactCardView{Name: short(card.Name), Phones: cutAll(whatsapp.VCardPhones(card.VCard, maxPhonesPerCard), maxPhonesPerCard)})
 	}
-}
-
-func vcardPhones(vcard string) []string {
-	var phones []string
-	for _, line := range strings.Split(strings.ReplaceAll(vcard, "\r\n", "\n"), "\n") {
-		if len(phones) == maxPhonesPerCard {
-			break
-		}
-		if phone, ok := vcardPhone(line); ok {
-			phones = append(phones, phone)
-		}
-	}
-	return phones
-}
-
-func vcardPhone(line string) (string, bool) {
-	if !strings.HasPrefix(strings.ToUpper(line), vcardPhonePrefix) {
-		return "", false
-	}
-	params, value, found := strings.Cut(line, ":")
-	if !found {
-		return "", false
-	}
-	for _, param := range strings.Split(params, ";") {
-		if waid, ok := strings.CutPrefix(strings.ToLower(param), vcardWhatsAppAttr); ok && waid != "" {
-			return "+" + waid, true
-		}
-	}
-	value = strings.TrimSpace(value)
-	return short(value), value != ""
 }
 
 func cutAll(values []string, limit int) []string {
