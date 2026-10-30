@@ -32,7 +32,7 @@ func TestWebhooksListShowsThePendingAndFailedDeliveriesAndTheLastSuccess(t *test
 	h.AddAccount(t, "work", workPhone, "Alex")
 	rx := h.StartReceiver(t, apptest.Reply(http.StatusOK), apptest.Reply(http.StatusServiceUnavailable),
 		apptest.ReplyWithBody(http.StatusBadRequest, "wrong tenant acme-42"))
-	addWebhook(t, h, rx, "support-bot", "work")
+	addWebhookSendingAtOnce(t, h, rx, "support-bot")
 	h.Clock.Advance(time.Minute)
 
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi")))
@@ -62,7 +62,7 @@ func TestAConnectionFailureIsRetriedAndShownInTheList(t *testing.T) {
 	}
 	downURL := "http://" + closed.Addr().String() + "/hooks/whatsapp"
 	closed.Close()
-	h.CLI(t, "webhooks", "add", "support-bot", "--url", downURL, "--accounts", "work")
+	h.CLI(t, "webhooks", "add", "support-bot", "--url", downURL, "--accounts", "work", "--quiet", "0s")
 
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi")))
 	awaitAttempts(t, h, 1)
@@ -85,7 +85,7 @@ func TestABlockedAttemptIsAuditedAndShownInTheList(t *testing.T) {
 	rx := h.StartReceiver(t)
 	h.Hosts.Point("bot", "127.0.0.1")
 	webhookURL := strings.Replace(rx.URL, "127.0.0.1", "bot", 1)
-	added := h.CLI(t, "webhooks", "add", "support-bot", "--url", webhookURL, "--accounts", "work")
+	added := h.CLI(t, "webhooks", "add", "support-bot", "--url", webhookURL, "--accounts", "work", "--quiet", "0s")
 	rx.Trust(secretFrom(t, added.Stdout))
 	h.Hosts.Point("bot", "203.0.113.10")
 

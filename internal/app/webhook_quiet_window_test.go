@@ -201,6 +201,11 @@ func addWebhookWithWindow(t *testing.T, h *apptest.Harness, rx *apptest.Receiver
 	rx.Trust(secretFrom(t, added.Stdout))
 }
 
+func addWebhookSendingAtOnce(t *testing.T, h *apptest.Harness, rx *apptest.Receiver, name string) {
+	t.Helper()
+	addWebhookWithWindow(t, h, rx, name, "--quiet", "0s")
+}
+
 func TestTheOwnerSetsTheQuietWindowAndTheMaxWait(t *testing.T) {
 	h := apptest.Start(t)
 	h.AddAccount(t, "work", workPhone, "Alex")
