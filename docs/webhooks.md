@@ -86,7 +86,7 @@ zapgate webhooks test support-bot
 the receiver of the webhook support-bot answered 200 OK
 ```
 
-Any other answer, or no answer, makes the command fail, for example `zapgate: the receiver of the webhook support-bot answered 503 Service Unavailable`. `test` works also on a disabled webhook.
+An answer outside 2xx, or no answer, makes the command fail, for example `zapgate: the receiver of the webhook support-bot answered 503 Service Unavailable`. `test` works also on a disabled webhook.
 
 ## Events
 
@@ -380,6 +380,8 @@ opened again 2 failed deliveries of the webhook support-bot
 ```
 
 `redeliver` opens again the deliveries that failed in the last `--since`, with the same `webhook-id` and a new schedule of retries. The default period is `24h`.
+
+On a disabled webhook, these deliveries wait too. After a `410`, fix the receiver, then run `enable` and `redeliver`.
 
 The daily retention pass deletes the events and the delivered and failed deliveries after 7 days. A delivery that failed some days ago can come back without its messages, or not at all.
 
