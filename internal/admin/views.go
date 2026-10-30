@@ -154,6 +154,19 @@ type RemovedWebhook struct {
 	Name string `json:"name"`
 }
 
+type EnabledWebhook struct {
+	Name string `json:"name"`
+}
+
+type RedeliverRequest struct {
+	Since string `json:"since,omitempty"`
+}
+
+type RedeliveredWebhook struct {
+	Name       string `json:"name"`
+	Deliveries int    `json:"deliveries"`
+}
+
 type WebhookTest struct {
 	Name   string `json:"name"`
 	Status int    `json:"status,omitempty"`
