@@ -30,6 +30,7 @@ type Answer struct {
 	Body    string
 	Endless bool
 	Hold    <-chan struct{}
+	HangUp  bool
 }
 
 func Reply(status int) Answer {
@@ -50,6 +51,10 @@ func Redirect(status int, location string) Answer {
 
 func EndlessBody(status int) Answer {
 	return Answer{Status: status, Endless: true}
+}
+
+func HangUp() Answer {
+	return Answer{HangUp: true}
 }
 
 func Held(release <-chan struct{}, status int) Answer {
@@ -162,6 +167,10 @@ func (r *Receiver) answer(w http.ResponseWriter, req *http.Request, answer Answe
 		case <-req.Context().Done():
 		}
 	}
+	if answer.HangUp {
+		hangUp(w)
+		return
+	}
 	for name, values := range answer.Header {
 		w.Header()[name] = values
 	}
@@ -169,6 +178,12 @@ func (r *Receiver) answer(w http.ResponseWriter, req *http.Request, answer Answe
 	io.WriteString(w, answer.Body)
 	if answer.Endless {
 		writeEndlessly(w, req)
+	}
+}
+
+func hangUp(w http.ResponseWriter) {
+	if conn, _, err := http.NewResponseController(w).Hijack(); err == nil {
+		conn.Close()
 	}
 }
 

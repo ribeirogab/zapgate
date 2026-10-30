@@ -119,7 +119,7 @@ func (r *Registry) Test(ctx context.Context, name string) (store.Webhook, Result
 		return store.Webhook{}, Result{}, err
 	}
 	now := r.deps.Clock.Now()
-	body, err := encode(testBody(webhook.Name, now))
+	body, err := formatted(webhook, testBody(webhook.Name, now))
 	if err != nil {
 		return store.Webhook{}, Result{}, err
 	}
@@ -129,7 +129,7 @@ func (r *Registry) Test(ctx context.Context, name string) (store.Webhook, Result
 		Timestamp: now,
 		Body:      body,
 		Secrets:   SigningSecrets(webhook, now),
-		Headers:   webhook.Headers,
+		Headers:   outgoingHeaders(webhook),
 	})
 	return webhook, result, nil
 }

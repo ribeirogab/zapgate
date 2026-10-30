@@ -95,9 +95,10 @@ func ensureAccountFree(ctx context.Context, tx *sql.Tx, n NewAccount) error {
 	return err
 }
 
-func (s *Store) SetAccountState(ctx context.Context, id int64, state string) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE accounts SET state = ? WHERE id = ?`, state, id)
-	return err
+func (s *Store) SetAccountState(ctx context.Context, id int64, state string, at time.Time) error {
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		return changeAccountState(ctx, tx, id, state, at)
+	})
 }
 
 func (s *Store) SetAccountPaired(ctx context.Context, id int64, jid, phone string) error {
@@ -105,9 +106,24 @@ func (s *Store) SetAccountPaired(ctx context.Context, id int64, jid, phone strin
 	return err
 }
 
-func (s *Store) SetAccountLoggedOut(ctx context.Context, id int64) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE accounts SET jid = NULL, state = ? WHERE id = ?`, AccountLoggedOut, id)
-	return err
+func (s *Store) SetAccountLoggedOut(ctx context.Context, id int64, at time.Time) error {
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `UPDATE accounts SET jid = NULL WHERE id = ?`, id); err != nil {
+			return err
+		}
+		return changeAccountState(ctx, tx, id, AccountLoggedOut, at)
+	})
+}
+
+func changeAccountState(ctx context.Context, tx *sql.Tx, id int64, state string, at time.Time) error {
+	result, err := tx.ExecContext(ctx, `UPDATE accounts SET state = ? WHERE id = ? AND state <> ?`, state, id, state)
+	if err != nil {
+		return err
+	}
+	if changed, err := result.RowsAffected(); err != nil || changed == 0 {
+		return err
+	}
+	return journalState(ctx, tx, id, state, at)
 }
 
 func (s *Store) SetAccountProfileName(ctx context.Context, id int64, name string) error {

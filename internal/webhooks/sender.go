@@ -8,8 +8,10 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"strconv"
+	"sync/atomic"
 	"time"
 )
 
@@ -45,6 +47,7 @@ type Result struct {
 	Status     int
 	RetryAfter string
 	Err        error
+	Sent       bool
 }
 
 func (r Result) Accepted() bool {
@@ -67,6 +70,10 @@ func (r Result) AsksToWait() bool {
 	return r.RetryAfter != "" && (r.Status == http.StatusTooManyRequests || r.Status == http.StatusServiceUnavailable)
 }
 
+func (r Result) Unanswered() bool {
+	return r.Sent && r.Err != nil
+}
+
 func (r Result) Gone() bool {
 	return r.Err == nil && r.Status == http.StatusGone
 }
@@ -77,15 +84,20 @@ func (r Result) Blocked() bool {
 }
 
 type Sender struct {
-	plain  *http.Client
-	secure *http.Client
+	plain   *http.Client
+	secure  *http.Client
+	timeout time.Duration
 }
 
-func NewSender(resolver Resolver) *Sender {
+func NewSender(resolver Resolver, timeout time.Duration) *Sender {
 	dialer := &net.Dialer{Timeout: ConnectTimeout}
 	plain := newTransport(localDialer{resolver: resolver, dialer: dialer}.DialContext)
 	plain.DisableKeepAlives = true
-	return &Sender{plain: newClient(plain), secure: newClient(newTransport(dialer.DialContext))}
+	return &Sender{
+		plain:   newClient(plain, timeout),
+		secure:  newClient(newTransport(dialer.DialContext), timeout),
+		timeout: timeout,
+	}
 }
 
 func newTransport(dial func(ctx context.Context, network, address string) (net.Conn, error)) *http.Transport {
@@ -99,10 +111,10 @@ func newTransport(dial func(ctx context.Context, network, address string) (net.C
 	}
 }
 
-func newClient(transport *http.Transport) *http.Client {
+func newClient(transport *http.Transport, timeout time.Duration) *http.Client {
 	return &http.Client{
 		Transport:     transport,
-		Timeout:       TotalTimeout,
+		Timeout:       timeout,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}
 }
@@ -115,13 +127,16 @@ func (s *Sender) clientFor(req *http.Request) *http.Client {
 }
 
 func (s *Sender) Send(ctx context.Context, p Post) Result {
-	req, err := newRequest(ctx, p)
+	var sent atomic.Bool
+	req, err := newRequest(httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
+		WroteRequest: func(info httptrace.WroteRequestInfo) { sent.Store(info.Err == nil) },
+	}), p)
 	if err != nil {
 		return Result{Err: err}
 	}
 	resp, err := s.clientFor(req).Do(req)
 	if err != nil {
-		return Result{Err: explain(err)}
+		return Result{Err: s.explain(err), Sent: sent.Load()}
 	}
 	defer resp.Body.Close()
 	io.Copy(io.Discard, io.LimitReader(resp.Body, MaxResponseBytes))
@@ -148,14 +163,14 @@ func newRequest(ctx context.Context, p Post) (*http.Request, error) {
 	return req, nil
 }
 
-func explain(err error) error {
+func (s *Sender) explain(err error) error {
 	var opErr *net.OpError
 	if errors.As(err, &opErr) && opErr.Op == "dial" && opErr.Timeout() {
 		return fmt.Errorf("the receiver did not accept the connection within %s", ConnectTimeout)
 	}
 	var netErr net.Error
 	if errors.As(err, &netErr) && netErr.Timeout() {
-		return fmt.Errorf("the receiver did not answer within %s", TotalTimeout)
+		return fmt.Errorf("the receiver did not answer within %s", s.timeout)
 	}
 	var urlErr *url.Error
 	if errors.As(err, &urlErr) {
