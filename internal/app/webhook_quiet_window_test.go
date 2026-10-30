@@ -160,6 +160,38 @@ func TestARestartKeepsTheQuietWindowOfAnOpenDelivery(t *testing.T) {
 	}
 }
 
+func TestABurstOverTheSizeCapKeepsTheNewestMessagesAndFetchesFromTheFirst(t *testing.T) {
+	h := apptest.Start(t)
+	h.AddAccount(t, "work", workPhone, "Alex")
+	rx := h.StartReceiver(t)
+	addFullWebhook(t, h, rx, "support-bot", "work")
+	receive(h, mariaJID, "3EB0T0")
+	passQuietWindow(h)
+	bodyWithID(t, rx, "dlv_1")
+
+	long := strings.Repeat("🙂", 4000)
+	for i := 1; i <= 5; i++ {
+		h.Clock.Advance(time.Second)
+		h.WhatsApp.Emit(workPhone, message(direct(mariaJID, fmt.Sprintf("3EB0T%d", i), "Maria", h.Clock.Now()), text(long)))
+	}
+	passQuietWindow(h)
+
+	var raw []byte
+	body := awaitBody(t, rx, func(request apptest.Received, _ map[string]any) bool {
+		raw = request.Body
+		return request.Header.Get("Webhook-Id") == "dlv_2"
+	})
+	var kept []string
+	for _, msg := range messagesOf(body) {
+		kept = append(kept, msg.(map[string]any)["id"].(string))
+	}
+	data := body["data"].(map[string]any)
+	if len(raw) > 60_000 || data["truncated"] != true || strings.Join(kept, ",") != "3EB0T3,3EB0T4,3EB0T5" {
+		t.Fatalf("dlv_2 has %d bytes, truncated %v and %v, want at most 60000 bytes, truncated and 3EB0T3,3EB0T4,3EB0T5", len(raw), data["truncated"], kept)
+	}
+	assertJSON(t, data["fetch"], `{"tool": "get_messages", "arguments": {"account": "work", "chat": "5531944443333@s.whatsapp.net", "after": "3EB0T0"}}`)
+}
+
 func addWebhookWithWindow(t *testing.T, h *apptest.Harness, rx *apptest.Receiver, name string, window ...string) {
 	t.Helper()
 	added := h.CLI(t, append([]string{"webhooks", "add", name, "--url", rx.URL, "--accounts", "work"}, window...)...)
