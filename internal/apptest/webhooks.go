@@ -27,12 +27,21 @@ var errNoTrustedSecret = errors.New("the receiver trusts no secret yet")
 type Answer struct {
 	Status  int
 	Header  http.Header
+	Body    string
 	Endless bool
 	Hold    <-chan struct{}
 }
 
 func Reply(status int) Answer {
 	return Answer{Status: status}
+}
+
+func ReplyWithBody(status int, body string) Answer {
+	return Answer{Status: status, Body: body}
+}
+
+func RetryAfter(status int, value string) Answer {
+	return Answer{Status: status, Header: http.Header{"Retry-After": {value}}}
 }
 
 func Redirect(status int, location string) Answer {
@@ -157,6 +166,7 @@ func (r *Receiver) answer(w http.ResponseWriter, req *http.Request, answer Answe
 		w.Header()[name] = values
 	}
 	w.WriteHeader(answer.Status)
+	io.WriteString(w, answer.Body)
 	if answer.Endless {
 		writeEndlessly(w, req)
 	}

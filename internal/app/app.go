@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"os"
@@ -48,6 +49,7 @@ type Deps struct {
 	Log          *slog.Logger
 	Transcoder   media.Transcoder
 	Resolver     webhooks.Resolver
+	Random       func() float64
 }
 
 var (
@@ -116,7 +118,7 @@ func (a *App) wire(deps Deps, outbox *media.Outbox) {
 	hosts := resolver(deps)
 	ingester := ingest.New(a.store, deps.Clock, deps.Log)
 	sender := webhooks.NewSender(hosts)
-	dispatcher := webhooks.NewDispatcher(webhooks.DispatcherDeps{Store: a.store, Sender: sender, Clock: deps.Clock, Audit: auditLog, Log: deps.Log})
+	dispatcher := webhooks.NewDispatcher(webhooks.DispatcherDeps{Store: a.store, Sender: sender, Clock: deps.Clock, Random: random(deps), Audit: auditLog, Log: deps.Log})
 	var downloads *media.Downloader
 	manager := accounts.New(accounts.Deps{
 		Store:    a.store,
@@ -198,6 +200,13 @@ func resolver(deps Deps) webhooks.Resolver {
 		return net.DefaultResolver
 	}
 	return deps.Resolver
+}
+
+func random(deps Deps) func() float64 {
+	if deps.Random == nil {
+		return rand.Float64
+	}
+	return deps.Random
 }
 
 func health(w http.ResponseWriter, _ *http.Request) {

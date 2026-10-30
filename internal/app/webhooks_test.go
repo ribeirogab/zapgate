@@ -54,7 +54,7 @@ func TestWebhooksAddShowsTheSecretOnce(t *testing.T) {
 		t.Fatalf("exit %d, stderr %q", listed.Code, listed.Stderr)
 	}
 	rows := tableRows(t, listed.Stdout)
-	if len(rows) != 2 || rows[0] != "NAME URL ACCOUNTS STATE" || rows[1] != "support-bot "+botURL+" work enabled" {
+	if len(rows) != 2 || rows[0] != webhookListHeader || rows[1] != "support-bot "+botURL+" work enabled - 0 0 -" {
 		t.Fatalf("webhooks list %q", listed.Stdout)
 	}
 	if strings.Contains(listed.Stdout, secret) || strings.Contains(listed.Stdout, "whsec_") {
@@ -367,7 +367,7 @@ func TestWebhooksAllAccountsIsASnapshotOfTheExistingAccounts(t *testing.T) {
 	if !strings.HasPrefix(added.Stdout, "created the webhook support-bot (accounts: personal,work, events: message.received, content: minimal)\n") {
 		t.Fatalf("exit %d, stdout %q, stderr %q", added.Code, added.Stdout, added.Stderr)
 	}
-	if rows := tableRows(t, h.CLI(t, "webhooks", "list").Stdout); rows[1] != "support-bot "+botURL+" personal,work enabled" {
+	if rows := tableRows(t, h.CLI(t, "webhooks", "list").Stdout); rows[1] != "support-bot "+botURL+" personal,work enabled - 0 0 -" {
 		t.Fatalf("webhooks list %q", rows)
 	}
 }
@@ -380,7 +380,7 @@ func TestWebhooksAllAccountsWithoutAccounts(t *testing.T) {
 	if !strings.HasPrefix(added.Stdout, "created the webhook support-bot (accounts: none, events: message.received, content: minimal)\n") {
 		t.Fatalf("exit %d, stdout %q, stderr %q", added.Code, added.Stdout, added.Stderr)
 	}
-	if rows := tableRows(t, h.CLI(t, "webhooks", "list").Stdout); rows[1] != "support-bot "+botURL+" - enabled" {
+	if rows := tableRows(t, h.CLI(t, "webhooks", "list").Stdout); rows[1] != "support-bot "+botURL+" - enabled - 0 0 -" {
 		t.Fatalf("webhooks list %q", rows)
 	}
 }
@@ -417,7 +417,7 @@ func TestRemovingAnAccountRemovesItFromEveryWebhook(t *testing.T) {
 	}
 
 	rows := tableRows(t, h.CLI(t, "webhooks", "list").Stdout)
-	want := []string{"NAME URL ACCOUNTS STATE", "sales-bot " + botURL + " - enabled", "support-bot " + botURL + " personal enabled"}
+	want := []string{webhookListHeader, "sales-bot " + botURL + " - enabled - 0 0 -", "support-bot " + botURL + " personal enabled - 0 0 -"}
 	if strings.Join(rows, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("webhooks list %q, want %q", rows, want)
 	}
