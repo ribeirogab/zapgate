@@ -106,8 +106,25 @@ func (s *Store) MergeIdentity(ctx context.Context, accountID int64, lid, phone s
 		if _, err := tx.ExecContext(ctx, `UPDATE messages SET sender_jid = ? WHERE account_id = ? AND sender_jid = ?`, phone, accountID, lid); err != nil {
 			return err
 		}
-		return mergeReactions(ctx, tx, accountID, lid, phone)
+		if err := mergeReactions(ctx, tx, accountID, lid, phone); err != nil {
+			return err
+		}
+		return mergeWebhookChats(ctx, tx, accountID, lid, phone)
 	})
+}
+
+func mergeWebhookChats(ctx context.Context, tx *sql.Tx, accountID int64, lid, phone string) error {
+	for _, move := range []string{
+		`UPDATE events SET chat_jid = ? WHERE account_id = ? AND chat_jid = ?`,
+		`UPDATE webhook_deliveries SET chat_jid = ? WHERE account_id = ? AND chat_jid = ?`,
+		`UPDATE OR IGNORE webhook_chats SET chat_jid = ? WHERE account_id = ? AND chat_jid = ?`,
+	} {
+		if _, err := tx.ExecContext(ctx, move, phone, accountID, lid); err != nil {
+			return err
+		}
+	}
+	_, err := tx.ExecContext(ctx, `DELETE FROM webhook_chats WHERE account_id = ? AND chat_jid = ?`, accountID, lid)
+	return err
 }
 
 func mergeReactions(ctx context.Context, tx *sql.Tx, accountID int64, lid, phone string) error {
