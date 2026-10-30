@@ -47,6 +47,7 @@ alias zapgate='docker compose -f ~/zapgate/deploy/compose.yaml exec zapgate zapg
 | `zapgate accounts ...` | Pairs, describes, lists and removes accounts, and changes their retention ([Accounts](accounts.md)) |
 | `zapgate tokens create ...` | Creates a static token ([Access](access.md)) |
 | `zapgate access ...` | Lists, changes and revokes accesses ([Access](access.md)) |
+| `zapgate webhooks ...` | Adds, lists, changes, tests, enables and removes webhooks, rotates their secrets and sends failed deliveries again ([Webhooks](webhooks.md)) |
 | `zapgate password` | Prints the owner password of the OAuth login page |
 
 ## Always-on mode
@@ -165,7 +166,7 @@ The data lives in the Docker volume `zapgate_data`, mounted at `/data`:
 | File | What it keeps |
 | --- | --- |
 | `session.db` | The whatsmeow session: devices, keys, contacts and the map between LID and phone number. **Whoever reads this file controls the accounts** |
-| `app.db` | The accounts, chats, messages, the search index, the OAuth clients, the accesses, the token hashes and the used approvals |
+| `app.db` | The accounts, chats, messages, the search index, the OAuth clients, the accesses, the token hashes, the used approvals, and the webhooks with their secrets, the event journal and the deliveries |
 | `media/` | The media that arrived and the media that `send_media` sent, one directory per account, with random file names |
 | `uploads/` | The files sent to `/uploads`, until the `upload_id` expires |
 | `tmp/` | Temporary files of `send_media`. zapgate empties it at start |
