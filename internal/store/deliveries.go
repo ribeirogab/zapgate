@@ -85,6 +85,9 @@ func moveCursor(ctx context.Context, tx *sql.Tx, webhookID, cursor int64) (bool,
 }
 
 func queueEvent(ctx context.Context, tx *sql.Tx, q Queue, e Event) error {
+	if e.Kind == EventAccountState {
+		return openDelivery(ctx, tx, q.WebhookID, e, e.CreatedAt)
+	}
 	newest, err := newestDelivery(ctx, tx, q.WebhookID, e)
 	if err != nil {
 		return err

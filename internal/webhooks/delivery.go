@@ -102,6 +102,9 @@ func (d *Dispatcher) post(ctx context.Context, a attempt) (Post, error) {
 }
 
 func (d *Dispatcher) body(ctx context.Context, a attempt) (Body, error) {
+	if a.delivery.ChatJID == "" {
+		return d.stateBody(ctx, a)
+	}
 	data, err := d.receivedData(ctx, a)
 	if err != nil {
 		return Body{}, err
