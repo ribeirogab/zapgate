@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"go.mau.fi/whatsmeow/types"
 
@@ -55,6 +56,42 @@ func TestWebhooksSetChangesTheChatsForTheNextDelivery(t *testing.T) {
 	got := rx.Await(t, 2)
 	if id := got[1].Header.Get("Webhook-Id"); id != "dlv_2" || deliveryWithID(t, got, id).ids() != "3EB0M1" {
 		t.Fatalf("the second delivery is %s with %s, want dlv_2 with 3EB0M1", id, deliveryWithID(t, got, id).ids())
+	}
+}
+
+func changeWebhook(t *testing.T, h *apptest.Harness, name string, options ...string) {
+	t.Helper()
+	set := h.CLI(t, append([]string{"webhooks", "set", name}, options...)...)
+	if set.Code != 0 {
+		t.Fatalf("set the webhook %s: exit %d, stderr %q", name, set.Code, set.Stderr)
+	}
+}
+
+func TestAMessageThatTheChatFilterDroppedDoesNotComeBackInTheOpenDelivery(t *testing.T) {
+	h := apptest.Start(t)
+	h.AddAccount(t, "work", workPhone, "Alex")
+	rx := h.StartReceiver(t)
+	addWebhook(t, h, rx, "support-bot", "work", "--quiet", "60s", "--max-wait", "10m")
+	receive(h, mariaJID, "3EB0A1")
+	awaitJournalRead(t, h)
+	changeWebhook(t, h, "support-bot", "--chats", "+"+joaoPhone)
+	receive(h, mariaJID, "3EB0A2")
+	awaitJournalRead(t, h)
+	changeWebhook(t, h, "support-bot", "--chats", "all")
+
+	receive(h, mariaJID, "3EB0A3")
+	h.Clock.Advance(time.Minute)
+
+	if first := deliveryWithID(t, rx.Await(t, 1), "dlv_1"); first.ids() != "3EB0A1" {
+		t.Fatalf("dlv_1 has %s, want only 3EB0A1", first.ids())
+	}
+	if second := deliveryWithID(t, rx.Await(t, 2), "dlv_2"); second.ids() != "3EB0A3" {
+		t.Fatalf("dlv_2 has %s, want only 3EB0A3", second.ids())
+	}
+	for _, line := range awaitAttempts(t, h, 2) {
+		if line["events"] != float64(1) {
+			t.Fatalf("attempt line %v, want 1 event", line)
+		}
 	}
 }
 

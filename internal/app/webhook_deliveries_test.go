@@ -283,6 +283,25 @@ func journal(t *testing.T, h *apptest.Harness) string {
 	return strings.Join(lines, "\n")
 }
 
+func awaitJournalRead(t *testing.T, h *apptest.Harness) {
+	t.Helper()
+	db := appDB(t, h)
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		var behind int
+		if err := db.QueryRow(`SELECT count(*) FROM webhooks WHERE cursor < (SELECT coalesce(max(seq), 0) FROM events)`).Scan(&behind); err != nil {
+			t.Fatal(err)
+		}
+		if behind == 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%d webhooks did not read the whole event journal", behind)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
 func TestEachDeliveryAttemptIsAudited(t *testing.T) {
 	h := apptest.Start(t)
 	h.AddAccount(t, "work", workPhone, "Alex")
@@ -341,6 +360,37 @@ func TestAtMostFourPostsRunAtTheSameTime(t *testing.T) {
 	}
 	open()
 	rx.Await(t, 6)
+}
+
+func TestAWebhookTestWaitsWhileFourPostsRun(t *testing.T) {
+	h := apptest.Start(t)
+	h.AddAccount(t, "work", workPhone, "Alex")
+	release := make(chan struct{})
+	rx := h.StartReceiver(t, apptest.Held(release, http.StatusOK))
+	open := releaseOnce(release)
+	t.Cleanup(open)
+	addWebhook(t, h, rx, "support-bot", "work")
+	for i := range 4 {
+		peer := types.NewJID(fmt.Sprintf("55319000000%02d", i), types.DefaultUserServer)
+		h.WhatsApp.Emit(workPhone, message(direct(peer, fmt.Sprintf("3EB0C%d", i), "", morning), text("oi")))
+	}
+	passQuietWindow(h)
+	rx.Await(t, 4)
+
+	tested := make(chan apptest.CLIResult, 1)
+	go func() { tested <- h.CLI(t, "webhooks", "test", "support-bot") }()
+	time.Sleep(200 * time.Millisecond)
+	if held := len(rx.Received()); held != 4 {
+		t.Fatalf("%d posts run at the same time, want 4", held)
+	}
+	open()
+
+	if result := <-tested; result.Code != 0 || result.Stdout != "the receiver of the webhook support-bot answered 200 OK\n" {
+		t.Fatalf("exit %d, stdout %q, stderr %q", result.Code, result.Stdout, result.Stderr)
+	}
+	if last := rx.Await(t, 5)[4]; !strings.HasPrefix(last.Header.Get("Webhook-Id"), "test_") {
+		t.Fatalf("the last request has the webhook-id %q, want the test", last.Header.Get("Webhook-Id"))
+	}
 }
 
 func TestADeliveryAfterARotationIsSignedWithBothSecrets(t *testing.T) {

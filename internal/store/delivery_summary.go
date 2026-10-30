@@ -29,10 +29,11 @@ func (s *Store) SummarizeDeliveries(ctx context.Context, webhookID int64) (Deliv
 		lastSuccess sql.NullInt64
 	)
 	err := s.db.QueryRowContext(ctx, `SELECT
-  coalesce(sum(state IN ('open', 'retrying')), 0),
-  coalesce(sum(state = 'failed'), 0),
-  max(CASE WHEN state = 'delivered' THEN settled_at END)
-FROM webhook_deliveries WHERE webhook_id = ?`, webhookID).Scan(&summary.Pending, &summary.Failed, &lastSuccess)
+  coalesce(sum(state IN (?, ?)), 0),
+  coalesce(sum(state = ?), 0),
+  max(CASE WHEN state = ? THEN settled_at END)
+FROM webhook_deliveries WHERE webhook_id = ?`,
+		DeliveryOpen, DeliveryRetrying, DeliveryFailed, DeliveryDelivered, webhookID).Scan(&summary.Pending, &summary.Failed, &lastSuccess)
 	if err != nil {
 		return DeliverySummary{}, err
 	}
@@ -47,7 +48,7 @@ func (s *Store) lastFailure(ctx context.Context, webhookID int64) (AttemptFailur
 		message sql.NullString
 	)
 	err := s.db.QueryRowContext(ctx, `SELECT last_status, last_error FROM webhook_deliveries
-WHERE webhook_id = ? AND state IN ('retrying', 'failed') ORDER BY id DESC LIMIT 1`, webhookID).Scan(&status, &message)
+WHERE webhook_id = ? AND state IN (?, ?) ORDER BY id DESC LIMIT 1`, webhookID, DeliveryRetrying, DeliveryFailed).Scan(&status, &message)
 	if errors.Is(err, sql.ErrNoRows) {
 		return AttemptFailure{}, nil
 	}

@@ -15,20 +15,21 @@ const (
 )
 
 type Delivery struct {
-	ID         int64
-	WebhookID  int64
-	AccountID  int64
-	ChatJID    string
-	FirstSeq   int64
-	LastSeq    int64
-	EventCount int
-	State      string
-	OpenedAt   time.Time
-	DueAt      time.Time
-	Attempts   int
-	LastStatus int
-	LastError  string
-	SettledAt  time.Time
+	ID               int64
+	WebhookID        int64
+	AccountID        int64
+	ChatJID          string
+	FirstSeq         int64
+	LastSeq          int64
+	EventCount       int
+	State            string
+	OpenedAt         time.Time
+	DueAt            time.Time
+	Attempts         int
+	RecordedAttempts int
+	LastStatus       int
+	LastError        string
+	SettledAt        time.Time
 }
 
 type Placement struct {
@@ -40,7 +41,7 @@ type Queue struct {
 	WebhookID int64
 	Cursor    int64
 	Events    []Event
-	Place     func(e Event, newest *Delivery) Placement
+	Place     func(e Event, previous *Delivery) Placement
 }
 
 type AttemptOutcome struct {
@@ -54,14 +55,18 @@ type AttemptOutcome struct {
 
 const (
 	deliveryColumns = `d.id, d.webhook_id, d.account_id, d.chat_jid, d.first_seq, d.last_seq, d.event_count, d.state, d.opened_at, d.due_at,
-  d.attempts, d.last_status, d.last_error, d.settled_at`
-	sendableDelivery = `d.state IN ('open', 'retrying') AND NOT EXISTS (
+  d.attempts, d.recorded_attempts, d.last_status, d.last_error, d.settled_at`
+	sendableDelivery = `d.state IN (?, ?) AND NOT EXISTS (
   SELECT 1 FROM webhook_deliveries o
   WHERE o.webhook_id = d.webhook_id AND o.account_id = d.account_id AND o.chat_jid IS d.chat_jid
-    AND o.id < d.id AND o.state IN ('open', 'retrying'))
+    AND o.id < d.id AND o.state IN (?, ?))
   AND d.webhook_id IN (` + enabledWebhookIDs + `)`
 	enabledWebhookIDs = `SELECT id FROM webhooks WHERE disabled_at IS NULL`
 )
+
+func sendableDeliveryArgs(more ...any) []any {
+	return append([]any{DeliveryOpen, DeliveryRetrying, DeliveryOpen, DeliveryRetrying}, more...)
+}
 
 func (s *Store) QueueEvents(ctx context.Context, q Queue) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {
@@ -88,15 +93,27 @@ func moveCursor(ctx context.Context, tx *sql.Tx, webhookID, cursor int64) (takes
 }
 
 func queueEvent(ctx context.Context, tx *sql.Tx, q Queue, e Event) error {
-	newest, err := newestDelivery(ctx, tx, q.WebhookID, e)
+	previous, err := deliveryOfPreviousEvent(ctx, tx, q.WebhookID, e)
 	if err != nil {
 		return err
 	}
-	placement := q.Place(e, newest)
-	if placement.Join && newest != nil {
-		return joinDelivery(ctx, tx, newest.ID, e, placement.DueAt)
+	placement := q.Place(e, previous)
+	if placement.Join && previous != nil {
+		return joinDelivery(ctx, tx, previous.ID, e, placement.DueAt)
 	}
 	return openDelivery(ctx, tx, q.WebhookID, e, placement.DueAt)
+}
+
+func deliveryOfPreviousEvent(ctx context.Context, tx *sql.Tx, webhookID int64, e Event) (*Delivery, error) {
+	newest, err := newestDelivery(ctx, tx, webhookID, e)
+	if err != nil || newest == nil {
+		return nil, err
+	}
+	skipped, err := skippedEvents(ctx, tx, *newest, e)
+	if err != nil || skipped {
+		return nil, err
+	}
+	return newest, nil
 }
 
 func newestDelivery(ctx context.Context, tx *sql.Tx, webhookID int64, e Event) (*Delivery, error) {
@@ -106,6 +123,13 @@ func newestDelivery(ctx context.Context, tx *sql.Tx, webhookID int64, e Event) (
 		return nil, nil
 	}
 	return &delivery, err
+}
+
+func skippedEvents(ctx context.Context, tx *sql.Tx, d Delivery, e Event) (bool, error) {
+	var skipped bool
+	err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM events
+WHERE account_id = ? AND chat_jid IS ? AND seq > ? AND seq < ?)`, e.AccountID, optionalText(e.ChatJID), d.LastSeq, e.Seq).Scan(&skipped)
+	return skipped, err
 }
 
 func joinDelivery(ctx context.Context, tx *sql.Tx, id int64, e Event, dueAt time.Time) error {
@@ -123,7 +147,7 @@ VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)`,
 
 func (s *Store) DueDeliveries(ctx context.Context, now time.Time, limit int) ([]Delivery, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT `+deliveryColumns+` FROM webhook_deliveries d
-WHERE `+sendableDelivery+` AND d.due_at <= ? ORDER BY d.due_at, d.id LIMIT ?`, millis(now), limit)
+WHERE `+sendableDelivery+` AND d.due_at <= ? ORDER BY d.due_at, d.id LIMIT ?`, sendableDeliveryArgs(millis(now), limit)...)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +165,7 @@ WHERE `+sendableDelivery+` AND d.due_at <= ? ORDER BY d.due_at, d.id LIMIT ?`, m
 
 func (s *Store) NextDeliveryDue(ctx context.Context) (time.Time, bool, error) {
 	var due sql.NullInt64
-	err := s.db.QueryRowContext(ctx, `SELECT MIN(d.due_at) FROM webhook_deliveries d WHERE `+sendableDelivery).Scan(&due)
+	err := s.db.QueryRowContext(ctx, `SELECT MIN(d.due_at) FROM webhook_deliveries d WHERE `+sendableDelivery, sendableDeliveryArgs()...).Scan(&due)
 	return optionalTime(due), due.Valid, err
 }
 
@@ -165,7 +189,8 @@ WHERE id = ? AND state IN (?, ?) AND webhook_id IN (`+enabledWebhookIDs+`)`,
 
 func (s *Store) RecordAttempt(ctx context.Context, id int64, a AttemptOutcome) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `UPDATE webhook_deliveries SET state = ?, due_at = coalesce(?, due_at), last_status = ?, last_error = ?, settled_at = ?
+		_, err := tx.ExecContext(ctx, `UPDATE webhook_deliveries
+SET state = ?, due_at = coalesce(?, due_at), last_status = ?, last_error = ?, settled_at = ?, recorded_attempts = attempts
 WHERE id = ?`,
 			a.State, optionalMillis(a.DueAt), optionalStatus(a.Status), optionalText(a.Error), optionalMillis(a.SettledAt), id)
 		if err != nil || !a.DisablesWebhook {
@@ -182,7 +207,7 @@ WHERE id = (SELECT webhook_id FROM webhook_deliveries WHERE id = ?) AND disabled
 }
 
 func (s *Store) RedeliverFailed(ctx context.Context, webhookID int64, failedSince, dueAt time.Time) (int, error) {
-	result, err := s.db.ExecContext(ctx, `UPDATE webhook_deliveries SET state = ?, attempts = 0, due_at = ?, settled_at = NULL
+	result, err := s.db.ExecContext(ctx, `UPDATE webhook_deliveries SET state = ?, attempts = 0, recorded_attempts = 0, due_at = ?, settled_at = NULL
 WHERE webhook_id = ? AND state = ? AND settled_at >= ?`,
 		DeliveryRetrying, millis(dueAt), webhookID, DeliveryFailed, millis(failedSince))
 	if err != nil {
@@ -212,7 +237,7 @@ func scanDelivery(row scanner) (Delivery, error) {
 		lastStatus, settledAt sql.NullInt64
 	)
 	err := row.Scan(&d.ID, &d.WebhookID, &d.AccountID, &chatJID, &d.FirstSeq, &d.LastSeq, &d.EventCount, &d.State, &openedAt, &dueAt,
-		&d.Attempts, &lastStatus, &lastError, &settledAt)
+		&d.Attempts, &d.RecordedAttempts, &lastStatus, &lastError, &settledAt)
 	d.ChatJID = chatJID.String
 	d.OpenedAt = fromMillis(openedAt)
 	d.DueAt = fromMillis(dueAt)

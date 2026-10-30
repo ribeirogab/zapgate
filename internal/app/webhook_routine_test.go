@@ -112,6 +112,33 @@ func TestAClaudeRoutineRequestThatLostItsConnectionAfterTheSendFailsWithoutARetr
 	requireResults(t, lines, "failed")
 }
 
+func TestAClaudeRoutinePostCutByARestartFailsWithoutANewPost(t *testing.T) {
+	h := apptest.Start(t)
+	h.AddAccount(t, "work", workPhone, "Alex")
+	release := make(chan struct{})
+	rx := h.StartReceiver(t, apptest.Held(release, http.StatusOK), apptest.Reply(http.StatusOK))
+	t.Cleanup(releaseOnce(release))
+	addRoutineWebhook(t, h, rx, "triage", "work", "--quiet", "0s")
+
+	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
+	rx.Await(t, 1)
+	h.Restart(t)
+	h.Clock.Advance(30 * time.Second)
+	lines := awaitAttempts(t, h, 1)
+	h.Clock.Advance(24 * time.Hour)
+	requireNoNewRequest(t, rx, 1)
+
+	if len(lines) != 1 || lines[0]["attempt"] != float64(2) || lines[0]["status"] != float64(0) {
+		t.Fatalf("the attempt lines are %v, want only attempt 2 without a status", lines)
+	}
+	assertFields(t, lines[0], map[string]string{"webhook": "triage", "delivery": "dlv_1", "result": "failed"})
+	requireColumns(t, h, "triage", map[string]string{
+		"PENDING":    "0",
+		"FAILED":     "1",
+		"LAST ERROR": "an earlier attempt stopped before its result was recorded; zapgate does not fire a routine twice",
+	})
+}
+
 func TestAStandardRequestThatTimedOutGetsTheNextAttempt(t *testing.T) {
 	h := apptest.Start(t, apptest.WithWebhookTimeout(shortWebhookTimeout))
 	h.AddAccount(t, "work", workPhone, "Alex")

@@ -30,14 +30,13 @@ type DispatcherDeps struct {
 }
 
 type Dispatcher struct {
-	deps  DispatcherDeps
-	wake  chan struct{}
-	slots chan struct{}
-	wg    sync.WaitGroup
+	deps DispatcherDeps
+	wake chan struct{}
+	wg   sync.WaitGroup
 }
 
 func NewDispatcher(deps DispatcherDeps) *Dispatcher {
-	return &Dispatcher{deps: deps, wake: make(chan struct{}, 1), slots: make(chan struct{}, MaxConcurrent)}
+	return &Dispatcher{deps: deps, wake: make(chan struct{}, 1)}
 }
 
 func (d *Dispatcher) Notice(evt any) {
@@ -98,7 +97,7 @@ func (d *Dispatcher) collectFor(ctx context.Context, w store.Webhook) error {
 			return err
 		}
 		w.Cursor = journal[len(journal)-1].Seq
-		queue := store.Queue{WebhookID: w.ID, Cursor: w.Cursor, Events: match.keep(journal), Place: placer(w)}
+		queue := store.Queue{WebhookID: w.ID, Cursor: w.Cursor, Events: match.keep(journal), Place: placeFor(w)}
 		if err := d.deps.Store.QueueEvents(ctx, queue); err != nil {
 			return err
 		}
@@ -106,7 +105,8 @@ func (d *Dispatcher) collectFor(ctx context.Context, w store.Webhook) error {
 }
 
 func (d *Dispatcher) sendDue(ctx context.Context) error {
-	free := cap(d.slots) - len(d.slots)
+	slots := d.deps.Sender.postSlots
+	free := slots.free()
 	if free == 0 {
 		return nil
 	}
@@ -115,6 +115,9 @@ func (d *Dispatcher) sendDue(ctx context.Context) error {
 		return err
 	}
 	for _, delivery := range due {
+		if !slots.tryTake() {
+			return nil
+		}
 		if err := d.start(ctx, delivery); err != nil {
 			return err
 		}
@@ -124,13 +127,13 @@ func (d *Dispatcher) sendDue(ctx context.Context) error {
 
 func (d *Dispatcher) start(ctx context.Context, delivery store.Delivery) error {
 	claimed, err := d.deps.Store.ClaimDelivery(ctx, delivery.ID, d.deps.Clock.Now().Add(attemptLease))
-	if errors.Is(err, store.ErrNotFound) {
-		return nil
-	}
 	if err != nil {
+		d.deps.Sender.postSlots.release()
+		if errors.Is(err, store.ErrNotFound) {
+			return nil
+		}
 		return err
 	}
-	d.slots <- struct{}{}
 	d.wg.Go(func() {
 		defer d.release()
 		d.send(ctx, claimed)
@@ -139,13 +142,13 @@ func (d *Dispatcher) start(ctx context.Context, delivery store.Delivery) error {
 }
 
 func (d *Dispatcher) release() {
-	<-d.slots
+	d.deps.Sender.postSlots.release()
 	d.Wake()
 }
 
 func (d *Dispatcher) nextWake(ctx context.Context) time.Time {
 	poll := d.nextPoll()
-	if len(d.slots) == cap(d.slots) {
+	if d.deps.Sender.postSlots.free() == 0 {
 		return poll
 	}
 	due, ok, err := d.deps.Store.NextDeliveryDue(ctx)
