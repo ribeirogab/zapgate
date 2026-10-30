@@ -77,7 +77,7 @@ func TestAFailedDeliveryLeavesAgainWithTheSameIDOnTheSchedule(t *testing.T) {
 	h := apptest.Start(t)
 	h.AddAccount(t, "work", workPhone, "Alex")
 	rx := h.StartReceiver(t, apptest.Reply(http.StatusServiceUnavailable), apptest.Reply(http.StatusServiceUnavailable), apptest.Reply(http.StatusOK))
-	addWebhook(t, h, rx, "support-bot", "work")
+	addWebhookSendingAtOnce(t, h, rx, "support-bot")
 
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
 	rx.Await(t, 1)
@@ -92,7 +92,7 @@ func TestADeliveryFailsAfterTheLastRetryOfTheSchedule(t *testing.T) {
 	h := apptest.Start(t)
 	h.AddAccount(t, "work", workPhone, "Alex")
 	rx := h.StartReceiver(t, apptest.Reply(http.StatusInternalServerError))
-	addWebhook(t, h, rx, "support-bot", "work")
+	addWebhookSendingAtOnce(t, h, rx, "support-bot")
 	schedule := []time.Duration{5 * time.Second, 30 * time.Second, 2 * time.Minute, 10 * time.Minute, 30 * time.Minute,
 		time.Hour, 2 * time.Hour, 4 * time.Hour, 6 * time.Hour, 8 * time.Hour}
 
@@ -117,7 +117,7 @@ func startOneDelivery(t *testing.T, answers ...apptest.Answer) (*apptest.Harness
 	h := apptest.Start(t)
 	h.AddAccount(t, "work", workPhone, "Alex")
 	rx := h.StartReceiver(t, answers...)
-	addWebhook(t, h, rx, "support-bot", "work")
+	addWebhookSendingAtOnce(t, h, rx, "support-bot")
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
 	rx.Await(t, 1)
 	return h, rx
@@ -210,7 +210,7 @@ func TestTheNextAttemptWaitsTheRetryAfterTimeForAtMostAnHour(t *testing.T) {
 			h.Random.Set(1)
 			h.AddAccount(t, "work", workPhone, "Alex")
 			rx := h.StartReceiver(t, tc.answer, apptest.Reply(http.StatusOK))
-			addWebhook(t, h, rx, "support-bot", "work")
+			addWebhookSendingAtOnce(t, h, rx, "support-bot")
 
 			h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
 			rx.Await(t, 1)
@@ -236,7 +236,7 @@ func TestEachRetryHasAJitterOfTwentyPercent(t *testing.T) {
 			h.Random.Set(tc.random)
 			h.AddAccount(t, "work", workPhone, "Alex")
 			rx := h.StartReceiver(t, apptest.Reply(http.StatusServiceUnavailable), apptest.Reply(http.StatusServiceUnavailable), apptest.Reply(http.StatusOK))
-			addWebhook(t, h, rx, "support-bot", "work")
+			addWebhookSendingAtOnce(t, h, rx, "support-bot")
 
 			h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
 			rx.Await(t, 1)
@@ -252,7 +252,7 @@ func TestADeliveryThatWaitsForARetrySurvivesARestart(t *testing.T) {
 	h := apptest.Start(t)
 	h.AddAccount(t, "work", workPhone, "Alex")
 	rx := h.StartReceiver(t, apptest.Reply(http.StatusServiceUnavailable), apptest.Reply(http.StatusOK))
-	addWebhook(t, h, rx, "support-bot", "work")
+	addWebhookSendingAtOnce(t, h, rx, "support-bot")
 
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
 	rx.Await(t, 1)
@@ -270,7 +270,7 @@ func TestAPostCutByARestartLeavesAgainAfterTheAttemptLease(t *testing.T) {
 	release := make(chan struct{})
 	rx := h.StartReceiver(t, apptest.Held(release, http.StatusOK), apptest.Reply(http.StatusOK))
 	t.Cleanup(releaseOnce(release))
-	addWebhook(t, h, rx, "support-bot", "work")
+	addWebhookSendingAtOnce(t, h, rx, "support-bot")
 
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
 	rx.Await(t, 1)
@@ -291,7 +291,7 @@ func TestANewerDeliveryOfAChatWaitsWhileAnOlderOneRetries(t *testing.T) {
 	h := apptest.Start(t)
 	h.AddAccount(t, "work", workPhone, "Alex")
 	rx := h.StartReceiver(t, apptest.Reply(http.StatusServiceUnavailable), apptest.Reply(http.StatusOK))
-	addWebhook(t, h, rx, "support-bot", "work")
+	addWebhookSendingAtOnce(t, h, rx, "support-bot")
 
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi")))
 	rx.Await(t, 1)
@@ -319,7 +319,7 @@ func TestAFailedDeliveryLetsTheNextDeliveryOfTheChatGo(t *testing.T) {
 	rx := h.StartReceiver(t, apptest.Held(release, http.StatusBadRequest), apptest.Reply(http.StatusOK))
 	answer := releaseOnce(release)
 	t.Cleanup(answer)
-	addWebhook(t, h, rx, "support-bot", "work")
+	addWebhookSendingAtOnce(t, h, rx, "support-bot")
 
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi")))
 	rx.Await(t, 1)

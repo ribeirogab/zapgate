@@ -15,6 +15,8 @@ const (
 	chatsFlag        = "--chats"
 	eventsFlag       = "--events"
 	contentFlag      = "--content"
+	quietFlag        = "--quiet"
+	maxWaitFlag      = "--max-wait"
 	sinceFlag        = "--since"
 	noWebhookMessage = "no webhook yet"
 )
@@ -43,6 +45,8 @@ type webhookOptions struct {
 	chats    string
 	events   string
 	content  string
+	quiet    string
+	maxWait  string
 }
 
 func (o *webhookOptions) flags() map[string]*string {
@@ -52,6 +56,8 @@ func (o *webhookOptions) flags() map[string]*string {
 		chatsFlag:    &o.chats,
 		eventsFlag:   &o.events,
 		contentFlag:  &o.content,
+		quietFlag:    &o.quiet,
+		maxWaitFlag:  &o.maxWait,
 	}
 }
 
@@ -94,7 +100,14 @@ func parseNamedArgs(args []string, values map[string]*string) (string, error) {
 }
 
 func (o webhookOptions) options() admin.WebhookOptions {
-	options := admin.WebhookOptions{URL: o.url, Chats: o.chats, Events: commaList(o.events), Content: o.content}
+	options := admin.WebhookOptions{
+		URL:     o.url,
+		Chats:   o.chats,
+		Events:  commaList(o.events),
+		Content: o.content,
+		Quiet:   o.quiet,
+		MaxWait: o.maxWait,
+	}
 	if o.accounts != "" {
 		options.AllExistingAccounts, options.Accounts = accountChoice(o.accounts)
 	}

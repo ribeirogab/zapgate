@@ -19,8 +19,9 @@ import (
 )
 
 type deliveryBody struct {
-	Type string `json:"type"`
-	Data struct {
+	Type      string `json:"type"`
+	Timestamp string `json:"timestamp"`
+	Data      struct {
 		Account  string `json:"account"`
 		Messages []struct {
 			ID    string          `json:"id"`
@@ -80,6 +81,7 @@ func TestAReceivedMessageReachesTheWebhookAsASignedDelivery(t *testing.T) {
 	addWebhook(t, h, rx, "support-bot", "work")
 
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
+	passQuietWindow(h)
 
 	got := rx.Await(t, 1)
 	if id := got[0].Header.Get("Webhook-Id"); id != "dlv_1" {
@@ -87,7 +89,7 @@ func TestAReceivedMessageReachesTheWebhookAsASignedDelivery(t *testing.T) {
 	}
 	assertJSON(t, bodyOf(t, got[0]), `{
 		"type": "message.received",
-		"timestamp": "2026-10-13T12:00:00Z",
+		"timestamp": "2026-10-13T12:00:05Z",
 		"data": {
 			"account": "work",
 			"account_phone": "+5511988887777",
@@ -111,7 +113,10 @@ func TestTheMinimalBodyHasTheMediaButNoTextAndNoNames(t *testing.T) {
 	addWebhook(t, h, rx, "support-bot", "work")
 
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), image("a foto do cardápio")))
+	passQuietWindow(h)
+	rx.Await(t, 1)
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A2", "Maria", morning.Add(time.Minute)), voiceNote()))
+	passQuietWindow(h)
 
 	got := rx.Await(t, 2)
 	photo, voice := deliveryWithID(t, got, "dlv_1"), deliveryWithID(t, got, "dlv_2")
@@ -141,6 +146,7 @@ func TestTheFetchCallReadsTheMessagesOfTheDelivery(t *testing.T) {
 	addWebhook(t, h, rx, "support-bot", "work")
 
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A2", "Maria", morning.Add(time.Minute)), text("depois do webhook")))
+	passQuietWindow(h)
 
 	_, body := firstDelivery(t, rx)
 	want := map[string]any{"account": "work", "chat": mariaJID.String(), "after": "3EB0A1"}
@@ -159,6 +165,7 @@ func TestAGroupDeliveryHasTheGroupAndTheSender(t *testing.T) {
 	addWebhook(t, h, rx, "support-bot", "work")
 
 	h.WhatsApp.Emit(workPhone, message(inGroup(familyJID, joaoJID, types.JID{}, "3EB0G1", "João", morning), text("oi, família")))
+	passQuietWindow(h)
 
 	got := rx.Await(t, 1)
 	data := bodyOf(t, got[0])["data"].(map[string]any)
@@ -178,6 +185,7 @@ func TestHistoryAndOwnMessagesMakeNoDelivery(t *testing.T) {
 	h.WhatsApp.Emit(workPhone, pairingHistory())
 	h.WhatsApp.Emit(workPhone, message(ownFromPhone(mariaLID, mariaJID, "3A0B2", morning.Add(time.Minute)), fromPhone(mariaLID, "tudo, e você?")))
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A3", "Maria", morning.Add(2*time.Minute)), text("e aí?")))
+	passQuietWindow(h)
 
 	id, body := firstDelivery(t, rx)
 	if id != "dlv_1" || body.ids() != "3EB0A3" {
@@ -195,8 +203,11 @@ func TestADuplicateMessageMakesNoSecondDelivery(t *testing.T) {
 	addWebhook(t, h, rx, "support-bot", "work")
 
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0D1", "Maria", morning), text("uma vez")))
+	passQuietWindow(h)
+	rx.Await(t, 1)
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0D1", "Maria", morning), text("uma vez")))
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0D2", "Maria", morning.Add(time.Minute)), text("outra")))
+	passQuietWindow(h)
 
 	got := rx.Await(t, 2)
 	if first, second := deliveryWithID(t, got, "dlv_1"), deliveryWithID(t, got, "dlv_2"); first.ids() != "3EB0D1" || second.ids() != "3EB0D2" {
@@ -212,6 +223,7 @@ func TestANewWebhookGetsNoOlderEvent(t *testing.T) {
 	addWebhook(t, h, rx, "support-bot", "work")
 
 	h.WhatsApp.Emit(workPhone, message(direct(joaoJID, "3EB0J1", "João", morning.Add(time.Minute)), text("depois do webhook")))
+	passQuietWindow(h)
 
 	if id, body := firstDelivery(t, rx); id != "dlv_1" || body.ids() != "3EB0J1" {
 		t.Fatalf("the first delivery is %s with %s, want dlv_1 with 3EB0J1", id, body.ids())
@@ -227,6 +239,7 @@ func TestAWebhookGetsNoEventOfAnAccountOutsideItsList(t *testing.T) {
 
 	h.WhatsApp.Emit(personalPhone, message(direct(mariaJID, "3EB0P1", "Maria", morning), text("no pessoal")))
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0W1", "Maria", morning), text("no trabalho")))
+	passQuietWindow(h)
 
 	if id, body := firstDelivery(t, rx); id != "dlv_1" || body.Data.Account != "work" || body.ids() != "3EB0W1" {
 		t.Fatalf("the first delivery is %s for %s with %s, want dlv_1 for work with 3EB0W1", id, body.Data.Account, body.ids())
@@ -277,6 +290,7 @@ func TestEachDeliveryAttemptIsAudited(t *testing.T) {
 	addWebhook(t, h, rx, "support-bot", "work")
 
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
+	passQuietWindow(h)
 
 	line := awaitAuditLine(t, h, "webhook_delivery")
 	assertFields(t, line, map[string]string{"webhook": "support-bot", "account": "work", "delivery": "dlv_1", "result": "delivered"})
@@ -318,6 +332,7 @@ func TestAtMostFourPostsRunAtTheSameTime(t *testing.T) {
 		peer := types.NewJID(fmt.Sprintf("55319000000%02d", i), types.DefaultUserServer)
 		h.WhatsApp.Emit(workPhone, message(direct(peer, fmt.Sprintf("3EB0C%d", i), "", morning), text("oi")))
 	}
+	passQuietWindow(h)
 
 	rx.Await(t, 4)
 	time.Sleep(200 * time.Millisecond)
@@ -336,6 +351,7 @@ func TestADeliveryAfterARotationIsSignedWithBothSecrets(t *testing.T) {
 	fresh := rotateSecret(t, h, rx, "support-bot")
 
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
+	passQuietWindow(h)
 
 	requireSigners(t, rx.Await(t, 1), []string{fresh, old}, [][]string{{fresh, old}})
 }
