@@ -55,6 +55,8 @@ func (o WebhookOptions) options() webhooks.Options {
 		Chats:               o.Chats,
 		Events:              o.Events,
 		Content:             o.Content,
+		Format:              o.Format,
+		Headers:             o.Headers,
 	}
 }
 
@@ -148,6 +150,7 @@ func webhookView(r webhooks.Registered) WebhookView {
 		ListedChats: r.ListedChats,
 		Content:     r.Content,
 		Format:      r.Format,
+		HeaderNames: webhooks.HeaderNames(r.Webhook),
 		State:       webhooks.State(r.Webhook),
 		CreatedAt:   r.CreatedAt.UTC().Format(time.RFC3339),
 

@@ -15,6 +15,8 @@ const (
 	chatsFlag        = "--chats"
 	eventsFlag       = "--events"
 	contentFlag      = "--content"
+	formatFlag       = "--format"
+	headerFlag       = "--header"
 	noWebhookMessage = "no webhook yet"
 )
 
@@ -40,6 +42,8 @@ type webhookOptions struct {
 	chats    string
 	events   string
 	content  string
+	format   string
+	headers  []string
 }
 
 func (o *webhookOptions) flags() map[string]*string {
@@ -49,7 +53,12 @@ func (o *webhookOptions) flags() map[string]*string {
 		chatsFlag:    &o.chats,
 		eventsFlag:   &o.events,
 		contentFlag:  &o.content,
+		formatFlag:   &o.format,
 	}
+}
+
+func (o *webhookOptions) repeatedFlags() map[string]*[]string {
+	return map[string]*[]string{headerFlag: &o.headers}
 }
 
 func (o webhookOptions) given() bool {
@@ -58,25 +67,34 @@ func (o webhookOptions) given() bool {
 			return true
 		}
 	}
-	return false
+	return o.headers != nil
 }
 
 func parseWebhookOptions(args []string) (webhookOptions, error) {
 	var opts webhookOptions
-	name, err := parseNamedArgs(args, opts.flags())
+	name, err := parseNamedArgs(args, opts.flags(), opts.repeatedFlags())
 	opts.name = name
 	return opts, err
 }
 
-func parseNamedArgs(args []string, values map[string]*string) (string, error) {
+func parseNamedArgs(args []string, values map[string]*string, lists map[string]*[]string) (string, error) {
 	var name string
 	for i := 0; i < len(args); i++ {
-		if target, ok := values[strings.SplitN(args[i], "=", 2)[0]]; ok {
+		flag := strings.SplitN(args[i], "=", 2)[0]
+		if target, ok := values[flag]; ok {
 			value, next, err := flagValue(args, i)
 			if err != nil {
 				return "", err
 			}
 			*target, i = value, next
+			continue
+		}
+		if target, ok := lists[flag]; ok {
+			value, next, err := flagValue(args, i)
+			if err != nil {
+				return "", err
+			}
+			*target, i = append(*target, value), next
 			continue
 		}
 		if strings.HasPrefix(args[i], "-") || name != "" {
@@ -91,7 +109,7 @@ func parseNamedArgs(args []string, values map[string]*string) (string, error) {
 }
 
 func (o webhookOptions) options() admin.WebhookOptions {
-	options := admin.WebhookOptions{URL: o.url, Chats: o.chats, Events: commaList(o.events), Content: o.content}
+	options := admin.WebhookOptions{URL: o.url, Chats: o.chats, Events: commaList(o.events), Content: o.content, Format: o.format, Headers: o.headers}
 	if o.accounts != "" {
 		options.AllExistingAccounts, options.Accounts = accountChoice(o.accounts)
 	}
@@ -190,6 +208,8 @@ var webhookColumns = []webhookColumn{
 	{header: "CHATS", value: chatsLabel},
 	{header: "EVENTS", value: func(w admin.WebhookView) string { return strings.Join(w.Events, ",") }},
 	{header: "CONTENT", value: func(w admin.WebhookView) string { return w.Content }},
+	{header: "FORMAT", value: func(w admin.WebhookView) string { return w.Format }},
+	{header: "HEADERS", value: func(w admin.WebhookView) string { return listOrDash(w.HeaderNames) }},
 	{header: "STATE", value: func(w admin.WebhookView) string { return w.State }},
 	{header: "LAST SUCCESS", value: func(w admin.WebhookView) string { return orDash(w.LastSuccess) }},
 	{header: "PENDING", value: func(w admin.WebhookView) string { return strconv.Itoa(w.Pending) }},

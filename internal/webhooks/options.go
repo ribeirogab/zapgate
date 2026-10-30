@@ -17,6 +17,8 @@ type Options struct {
 	Chats               string
 	Events              []string
 	Content             string
+	Format              string
+	Headers             []string
 }
 
 type config struct {
@@ -48,6 +50,8 @@ func (o Options) apply(ctx context.Context, resolver Resolver, c config) (config
 		o.applyEvents,
 		o.applyChats,
 		o.applyContent,
+		o.applyFormat,
+		o.applyHeaders,
 	}
 	for _, step := range steps {
 		if err := step(ctx, &c); err != nil {
@@ -109,5 +113,28 @@ func (o Options) applyContent(_ context.Context, c *config) error {
 		return err
 	}
 	c.webhook.Content = o.Content
+	return nil
+}
+
+func (o Options) applyFormat(_ context.Context, c *config) error {
+	switch o.Format {
+	case "":
+		return nil
+	case FormatStandard, FormatClaudeRoutine:
+		c.webhook.Format = o.Format
+		return nil
+	}
+	return invalid("the format %q is not valid: use %s or %s", o.Format, FormatStandard, FormatClaudeRoutine)
+}
+
+func (o Options) applyHeaders(_ context.Context, c *config) error {
+	if o.Headers == nil {
+		return nil
+	}
+	headers, err := parseHeaders(o.Headers)
+	if err != nil {
+		return err
+	}
+	c.webhook.Headers = headers
 	return nil
 }

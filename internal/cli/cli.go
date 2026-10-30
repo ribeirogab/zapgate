@@ -28,7 +28,8 @@ const (
   zapgate access revoke <name>
   zapgate webhooks add <name> --url <url> --accounts <a,b|all>
       [--events message.received,account.state] [--chats all|direct|groups|<chat,...>]
-      [--content minimal|full]
+      [--content minimal|full] [--format standard|claude-routine]
+      [--header "<name>: <value>"]...
   zapgate webhooks list
   zapgate webhooks set <name> [the options of add]
   zapgate webhooks remove <name>

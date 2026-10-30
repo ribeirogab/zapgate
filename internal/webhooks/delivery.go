@@ -30,6 +30,8 @@ func (d *Dispatcher) outcome(a attempt, result Result, at time.Time) store.Attem
 	switch {
 	case result.Accepted():
 		return settled(store.DeliveryDelivered, result, at)
+	case a.webhook.Format == FormatClaudeRoutine && result.Unanswered():
+		return settled(store.DeliveryFailed, result, at)
 	case result.Retryable() && retriesLeft(a.delivery.Attempts):
 		return retrying(result, at.Add(d.retryDelay(a.delivery.Attempts, result, at)))
 	}
@@ -90,14 +92,14 @@ func (d *Dispatcher) post(ctx context.Context, a attempt) (Post, error) {
 	if err != nil {
 		return Post{}, err
 	}
-	encoded, err := encode(body)
+	encoded, err := formatted(a.webhook, body)
 	return Post{
 		URL:       a.webhook.URL,
 		ID:        deliveryID(a.delivery),
 		Timestamp: a.at,
 		Body:      encoded,
 		Secrets:   SigningSecrets(a.webhook, a.at),
-		Headers:   a.webhook.Headers,
+		Headers:   outgoingHeaders(a.webhook),
 	}, err
 }
 

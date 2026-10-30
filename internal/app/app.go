@@ -43,13 +43,14 @@ const (
 type Config = config.Config
 
 type Deps struct {
-	OpenWhatsApp whatsapp.Opener
-	Clock        clock.Clock
-	Audit        io.Writer
-	Log          *slog.Logger
-	Transcoder   media.Transcoder
-	Resolver     webhooks.Resolver
-	Random       func() float64
+	OpenWhatsApp   whatsapp.Opener
+	Clock          clock.Clock
+	Audit          io.Writer
+	Log            *slog.Logger
+	Transcoder     media.Transcoder
+	Resolver       webhooks.Resolver
+	Random         func() float64
+	WebhookTimeout time.Duration
 }
 
 var (
@@ -117,7 +118,7 @@ func (a *App) wire(deps Deps, outbox *media.Outbox) {
 	auditLog := audit.New(deps.Audit, deps.Clock)
 	hosts := resolver(deps)
 	ingester := ingest.New(a.store, deps.Clock, deps.Log)
-	sender := webhooks.NewSender(hosts)
+	sender := webhooks.NewSender(hosts, webhookTimeout(deps))
 	dispatcher := webhooks.NewDispatcher(webhooks.DispatcherDeps{Store: a.store, Sender: sender, Clock: deps.Clock, Random: random(deps), Audit: auditLog, Log: deps.Log})
 	var downloads *media.Downloader
 	manager := accounts.New(accounts.Deps{
@@ -200,6 +201,13 @@ func resolver(deps Deps) webhooks.Resolver {
 		return net.DefaultResolver
 	}
 	return deps.Resolver
+}
+
+func webhookTimeout(deps Deps) time.Duration {
+	if deps.WebhookTimeout == 0 {
+		return webhooks.TotalTimeout
+	}
+	return deps.WebhookTimeout
 }
 
 func random(deps Deps) func() float64 {
