@@ -14,6 +14,7 @@ import (
 func (h *handler) registerWebhookRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /webhooks", h.serveCreated(h.addWebhook))
 	mux.HandleFunc("GET /webhooks", h.serve(h.listWebhooks))
+	mux.HandleFunc("PATCH /webhooks/{name}", h.serve(h.setWebhook))
 	mux.HandleFunc("DELETE /webhooks/{name}", h.serve(h.removeWebhook))
 	mux.HandleFunc("POST /webhooks/{name}/test", h.serve(h.testWebhook))
 	mux.HandleFunc("POST /webhooks/{name}/secret", h.serve(h.rotateWebhookSecret))
@@ -38,18 +39,23 @@ func (h *handler) addWebhook(r *http.Request) (any, error) {
 	if err := decodeBody(r, &req); err != nil {
 		return nil, err
 	}
-	registered, secret, err := h.deps.Webhooks.Add(r.Context(), webhooks.Registration{
-		Name:                req.Name,
-		URL:                 req.URL,
-		AllExistingAccounts: req.AllExistingAccounts,
-		Accounts:            req.Accounts,
-		Content:             req.Content,
-	})
+	registered, secret, err := h.deps.Webhooks.Add(r.Context(), webhooks.Registration{Name: req.Name, Options: req.options()})
 	if err != nil {
 		return nil, webhookError(req.Name, err)
 	}
 	h.deps.Audit.WebhookAction(r.Context(), audit.ActionWebhookAdd, registered.Name)
 	return CreatedWebhook{Webhook: webhookView(registered), Secret: secret}, nil
+}
+
+func (o WebhookOptions) options() webhooks.Options {
+	return webhooks.Options{
+		URL:                 o.URL,
+		AllExistingAccounts: o.AllExistingAccounts,
+		Accounts:            o.Accounts,
+		Chats:               o.Chats,
+		Events:              o.Events,
+		Content:             o.Content,
+	}
 }
 
 func (h *handler) listWebhooks(r *http.Request) (any, error) {
@@ -62,6 +68,20 @@ func (h *handler) listWebhooks(r *http.Request) (any, error) {
 		views = append(views, webhookView(registered))
 	}
 	return webhookListResponse{Webhooks: views}, nil
+}
+
+func (h *handler) setWebhook(r *http.Request) (any, error) {
+	var req WebhookOptions
+	if err := decodeBody(r, &req); err != nil {
+		return nil, err
+	}
+	name := r.PathValue("name")
+	changed, err := h.deps.Webhooks.Set(r.Context(), name, req.options())
+	if err != nil {
+		return nil, webhookError(name, err)
+	}
+	h.deps.Audit.WebhookAction(r.Context(), audit.ActionWebhookSet, changed.Name)
+	return webhookResponse{Webhook: webhookView(changed)}, nil
 }
 
 func (h *handler) removeWebhook(r *http.Request) (any, error) {
@@ -120,15 +140,16 @@ func webhookError(name string, err error) error {
 
 func webhookView(r webhooks.Registered) WebhookView {
 	return WebhookView{
-		Name:      r.Name,
-		URL:       r.URL,
-		Accounts:  r.Accounts,
-		Events:    r.Events,
-		Chats:     r.Chats,
-		Content:   r.Content,
-		Format:    r.Format,
-		State:     webhooks.State(r.Webhook),
-		CreatedAt: r.CreatedAt.UTC().Format(time.RFC3339),
+		Name:        r.Name,
+		URL:         r.URL,
+		Accounts:    r.Accounts,
+		Events:      r.Events,
+		Chats:       r.Chats,
+		ListedChats: r.ListedChats,
+		Content:     r.Content,
+		Format:      r.Format,
+		State:       webhooks.State(r.Webhook),
+		CreatedAt:   r.CreatedAt.UTC().Format(time.RFC3339),
 
 		Pending:     r.Deliveries.Pending,
 		Failed:      r.Deliveries.Failed,

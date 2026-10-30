@@ -100,24 +100,31 @@ type SetAccessRequest struct {
 	Approval            string   `json:"approval,omitempty"`
 }
 
-type AddWebhookRequest struct {
-	Name                string   `json:"name"`
-	URL                 string   `json:"url"`
+type WebhookOptions struct {
+	URL                 string   `json:"url,omitempty"`
 	Accounts            []string `json:"accounts"`
-	AllExistingAccounts bool     `json:"all_existing_accounts"`
+	AllExistingAccounts bool     `json:"all_existing_accounts,omitempty"`
+	Chats               string   `json:"chats,omitempty"`
+	Events              []string `json:"events"`
 	Content             string   `json:"content,omitempty"`
 }
 
+type AddWebhookRequest struct {
+	Name string `json:"name"`
+	WebhookOptions
+}
+
 type WebhookView struct {
-	Name      string   `json:"name"`
-	URL       string   `json:"url"`
-	Accounts  []string `json:"accounts"`
-	Events    []string `json:"events"`
-	Chats     string   `json:"chats"`
-	Content   string   `json:"content"`
-	Format    string   `json:"format"`
-	State     string   `json:"state"`
-	CreatedAt string   `json:"created_at"`
+	Name        string   `json:"name"`
+	URL         string   `json:"url"`
+	Accounts    []string `json:"accounts"`
+	Events      []string `json:"events"`
+	Chats       string   `json:"chats"`
+	ListedChats []string `json:"listed_chats,omitempty"`
+	Content     string   `json:"content"`
+	Format      string   `json:"format"`
+	State       string   `json:"state"`
+	CreatedAt   string   `json:"created_at"`
 
 	Pending     int            `json:"pending"`
 	Failed      int            `json:"failed"`
@@ -149,6 +156,10 @@ type WebhookTest struct {
 	Name   string `json:"name"`
 	Status int    `json:"status,omitempty"`
 	Error  string `json:"error,omitempty"`
+}
+
+type webhookResponse struct {
+	Webhook WebhookView `json:"webhook"`
 }
 
 type webhookListResponse struct {

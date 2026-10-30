@@ -46,7 +46,12 @@ const (
 	httpsScheme    = "https"
 )
 
-var defaultEvents = []string{EventMessageReceived}
+const knownEventsLabel = EventMessageReceived + " or " + EventAccountState
+
+var (
+	defaultEvents = []string{EventMessageReceived}
+	knownEvents   = []string{EventMessageReceived, EventAccountState}
+)
 
 type InvalidError struct {
 	Message string
@@ -92,17 +97,10 @@ func validateURL(ctx context.Context, resolver Resolver, raw string) error {
 
 func validateContent(content string) error {
 	switch content {
-	case "", ContentMinimal, ContentFull:
+	case ContentMinimal, ContentFull:
 		return nil
 	}
 	return invalid("the content level %q is not valid: use %s or %s", content, ContentMinimal, ContentFull)
-}
-
-func contentOrDefault(content string) string {
-	if content == "" {
-		return ContentMinimal
-	}
-	return content
 }
 
 func validateAccountChoice(allExisting bool, accounts []string) error {

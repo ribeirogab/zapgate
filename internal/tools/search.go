@@ -7,6 +7,8 @@ import (
 	"golang.org/x/text/runes"
 	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
+
+	"github.com/ribeirogab/zapgate/internal/whatsapp"
 )
 
 const minSearchDigits = 3
@@ -20,7 +22,7 @@ type search struct {
 
 func newSearch(query string) search {
 	s := search{text: fold(query)}
-	if digits, ok := onlyPhoneDigits(query); ok && len(digits) >= minSearchDigits {
+	if digits, ok := whatsapp.PhoneDigits(query); ok && len(digits) >= minSearchDigits {
 		s.digits = digits
 	}
 	return s
@@ -48,18 +50,4 @@ func fold(value string) string {
 		folded = value
 	}
 	return strings.ToLower(strings.TrimSpace(folded))
-}
-
-func onlyPhoneDigits(value string) (string, bool) {
-	var digits strings.Builder
-	for _, r := range strings.TrimSpace(value) {
-		switch {
-		case r >= '0' && r <= '9':
-			digits.WriteRune(r)
-		case strings.ContainsRune("+-() .", r):
-		default:
-			return "", false
-		}
-	}
-	return digits.String(), true
 }
