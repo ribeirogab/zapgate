@@ -109,6 +109,8 @@ type WebhookOptions struct {
 	Content             string   `json:"content,omitempty"`
 	Format              string   `json:"format,omitempty"`
 	Headers             []string `json:"headers"`
+	Quiet               string   `json:"quiet,omitempty"`
+	MaxWait             string   `json:"max_wait,omitempty"`
 }
 
 type AddWebhookRequest struct {

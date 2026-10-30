@@ -57,6 +57,7 @@ func TestAClaudeRoutineWebhookSendsTheStandardBodyAsText(t *testing.T) {
 	addRoutineWebhook(t, h, routine, "triage", "work")
 
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
+	passQuietWindow(h)
 	want := standard.Await(t, 1)[0]
 	got := routine.Await(t, 1)[0]
 
@@ -83,7 +84,7 @@ func TestAClaudeRoutineRequestThatTimedOutAfterTheSendFailsWithoutARetry(t *test
 	h := apptest.Start(t, apptest.WithWebhookTimeout(shortWebhookTimeout))
 	h.AddAccount(t, "work", workPhone, "Alex")
 	rx := startTimingOutReceiver(t, h)
-	addRoutineWebhook(t, h, rx, "triage", "work")
+	addRoutineWebhook(t, h, rx, "triage", "work", "--quiet", "0s")
 
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
 	lines := awaitAttempts(t, h, 1)
@@ -101,7 +102,7 @@ func TestAClaudeRoutineRequestThatLostItsConnectionAfterTheSendFailsWithoutARetr
 	h := apptest.Start(t)
 	h.AddAccount(t, "work", workPhone, "Alex")
 	rx := h.StartReceiver(t, apptest.HangUp(), apptest.Reply(http.StatusOK))
-	addRoutineWebhook(t, h, rx, "triage", "work")
+	addRoutineWebhook(t, h, rx, "triage", "work", "--quiet", "0s")
 
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
 	lines := awaitAttempts(t, h, 1)
@@ -115,7 +116,7 @@ func TestAStandardRequestThatTimedOutGetsTheNextAttempt(t *testing.T) {
 	h := apptest.Start(t, apptest.WithWebhookTimeout(shortWebhookTimeout))
 	h.AddAccount(t, "work", workPhone, "Alex")
 	rx := startTimingOutReceiver(t, h)
-	addWebhook(t, h, rx, "support-bot", "work")
+	addWebhook(t, h, rx, "support-bot", "work", "--quiet", "0s")
 
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
 	rx.Await(t, 1)
@@ -131,7 +132,7 @@ func TestAClaudeRoutineDeliveryGetsTheNextAttemptAfterA429OrA5xx(t *testing.T) {
 			h := apptest.Start(t)
 			h.AddAccount(t, "work", workPhone, "Alex")
 			rx := h.StartReceiver(t, apptest.Reply(status), apptest.Reply(http.StatusOK))
-			addRoutineWebhook(t, h, rx, "triage", "work")
+			addRoutineWebhook(t, h, rx, "triage", "work", "--quiet", "0s")
 
 			h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
 			rx.Await(t, 1)
@@ -152,7 +153,7 @@ func TestAClaudeRoutineDeliveryGetsTheNextAttemptWhenTheConnectionFails(t *testi
 	}
 	downURL := "http://" + closed.Addr().String() + "/hooks/whatsapp"
 	closed.Close()
-	h.CLI(t, "webhooks", "add", "triage", "--url", downURL, "--accounts", "work", "--format", "claude-routine")
+	h.CLI(t, "webhooks", "add", "triage", "--url", downURL, "--accounts", "work", "--format", "claude-routine", "--quiet", "0s")
 
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
 	awaitAttempts(t, h, 1)
@@ -168,6 +169,7 @@ func TestTheTextOfAClaudeRoutineBodyHasAtMost65536Characters(t *testing.T) {
 	addRoutineWebhook(t, h, rx, "triage", "work", "--content", "full")
 
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A2", "Maria", morning), crowdedContactCards()))
+	passQuietWindow(h)
 	text := routineText(t, rx.Await(t, 1)[0])
 
 	if chars := utf8.RuneCountInString(text); chars > 65_536 {

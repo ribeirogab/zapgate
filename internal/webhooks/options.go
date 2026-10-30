@@ -19,6 +19,8 @@ type Options struct {
 	Content             string
 	Format              string
 	Headers             []string
+	Quiet               string
+	MaxWait             string
 }
 
 type config struct {
@@ -52,6 +54,7 @@ func (o Options) apply(ctx context.Context, resolver Resolver, c config) (config
 		o.applyContent,
 		o.applyFormat,
 		o.applyHeaders,
+		o.applyTiming,
 	}
 	for _, step := range steps {
 		if err := step(ctx, &c); err != nil {

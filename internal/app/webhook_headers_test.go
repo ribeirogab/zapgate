@@ -26,6 +26,7 @@ func TestExtraHeadersGoOutWithEveryPost(t *testing.T) {
 
 	h.CLI(t, "webhooks", "test", "support-bot")
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
+	passQuietWindow(h)
 	got := rx.Await(t, 2)
 
 	for _, request := range got {
@@ -62,6 +63,7 @@ func TestWebhooksSetReplacesAllExtraHeaders(t *testing.T) {
 
 	set := h.CLI(t, "webhooks", "set", "support-bot", "--header", "X-Region: sa-east")
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
+	passQuietWindow(h)
 
 	if set.Code != 0 {
 		t.Fatalf("exit %d, stdout %q, stderr %q", set.Code, set.Stdout, set.Stderr)
@@ -80,6 +82,7 @@ func TestWebhooksSetKeepsTheHeadersWhenItGetsNoHeader(t *testing.T) {
 
 	h.CLI(t, "webhooks", "set", "support-bot", "--content", "full")
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
+	passQuietWindow(h)
 
 	requireHeaders(t, rx.Await(t, 1)[0], map[string]string{"X-Tenant": "acme"})
 }
@@ -151,6 +154,7 @@ func TestWebhooksAddAndSetTakeTheFormat(t *testing.T) {
 
 	set := h.CLI(t, "webhooks", "set", "triage", "--format", "claude-routine", "--header", "Authorization: Bearer "+routineToken)
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
+	passQuietWindow(h)
 
 	if set.Code != 0 {
 		t.Fatalf("exit %d, stdout %q, stderr %q", set.Code, set.Stdout, set.Stderr)

@@ -83,6 +83,8 @@ func (o WebhookOptions) options() webhooks.Options {
 		Content:             o.Content,
 		Format:              o.Format,
 		Headers:             o.Headers,
+		Quiet:               o.Quiet,
+		MaxWait:             o.MaxWait,
 	}
 }
 

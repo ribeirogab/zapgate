@@ -35,6 +35,7 @@ func TestTheChatFilterKeepsOnlyTheChosenChats(t *testing.T) {
 
 			h.WhatsApp.Emit(workPhone, tc.dropped)
 			h.WhatsApp.Emit(workPhone, tc.kept)
+			passQuietWindow(h)
 
 			if id, body := firstDelivery(t, rx); id != "dlv_1" || body.ids() != tc.kept.Info.ID {
 				t.Fatalf("the first delivery is %s with %s, want dlv_1 with %s", id, body.ids(), tc.kept.Info.ID)
@@ -52,8 +53,10 @@ func TestAWebhookGetsOnlyTheEventsOfItsList(t *testing.T) {
 	addWebhook(t, h, rx, "support-bot", "work")
 
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0M1", "Maria", morning), text("oi")))
+	passQuietWindow(h)
 	first, _ := firstDelivery(t, rx)
 	h.WhatsApp.Emit(workPhone, message(direct(joaoJID, "3EB0J1", "João", morning), text("oi")))
+	passQuietWindow(h)
 	second := rx.Await(t, 2)[1].Header.Get("Webhook-Id")
 
 	if first != "dlv_1" || second != "dlv_2" {

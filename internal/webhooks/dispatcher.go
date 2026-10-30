@@ -98,7 +98,7 @@ func (d *Dispatcher) collectFor(ctx context.Context, w store.Webhook) error {
 			return err
 		}
 		w.Cursor = journal[len(journal)-1].Seq
-		queue := store.Queue{WebhookID: w.ID, Cursor: w.Cursor, Events: match.keep(journal), Place: place}
+		queue := store.Queue{WebhookID: w.ID, Cursor: w.Cursor, Events: match.keep(journal), Place: placer(w)}
 		if err := d.deps.Store.QueueEvents(ctx, queue); err != nil {
 			return err
 		}
