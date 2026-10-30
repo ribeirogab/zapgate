@@ -170,6 +170,18 @@ func (c *Client) RemoveWebhook(ctx context.Context, name string) (RemovedWebhook
 	return out, err
 }
 
+func (c *Client) EnableWebhook(ctx context.Context, name string) (EnabledWebhook, error) {
+	var out EnabledWebhook
+	err := c.call(ctx, http.MethodPost, "/webhooks/"+url.PathEscape(name)+"/enable", nil, &out)
+	return out, err
+}
+
+func (c *Client) RedeliverWebhook(ctx context.Context, name string, req RedeliverRequest) (RedeliveredWebhook, error) {
+	var out RedeliveredWebhook
+	err := c.call(ctx, http.MethodPost, "/webhooks/"+url.PathEscape(name)+"/redeliver", req, &out)
+	return out, err
+}
+
 func (c *Client) TestWebhook(ctx context.Context, name string) (WebhookTest, error) {
 	var out WebhookTest
 	err := c.call(ctx, http.MethodPost, "/webhooks/"+url.PathEscape(name)+"/test", nil, &out)

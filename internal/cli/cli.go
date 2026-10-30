@@ -28,12 +28,14 @@ const (
   zapgate access revoke <name>
   zapgate webhooks add <name> --url <url> --accounts <a,b|all>
       [--events message.received,account.state] [--chats all|direct|groups|<chat,...>]
-      [--content minimal|full]
+      [--content minimal|full] [--quiet 5s] [--max-wait 30s]
   zapgate webhooks list
   zapgate webhooks set <name> [the options of add]
+  zapgate webhooks enable <name>
   zapgate webhooks remove <name>
   zapgate webhooks test <name>
   zapgate webhooks rotate-secret <name>
+  zapgate webhooks redeliver <name> [--since <duration>]
   zapgate password
 `
 )

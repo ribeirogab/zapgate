@@ -9,7 +9,10 @@ import (
 	"github.com/ribeirogab/zapgate/internal/store"
 )
 
-const deliveryIDPrefix = "dlv_"
+const (
+	deliveryIDPrefix  = "dlv_"
+	maxDeliveryEvents = 100
+)
 
 type attempt struct {
 	webhook  store.Webhook
@@ -22,14 +25,40 @@ func deliveryID(d store.Delivery) string {
 	return deliveryIDPrefix + strconv.FormatInt(d.ID, 10)
 }
 
-func place(e store.Event, _ *store.Delivery) store.Placement {
-	return store.Placement{DueAt: e.CreatedAt}
+func placer(w store.Webhook) func(store.Event, *store.Delivery) store.Placement {
+	return func(e store.Event, newest *store.Delivery) store.Placement {
+		return place(w, e, newest)
+	}
+}
+
+func place(w store.Webhook, e store.Event, newest *store.Delivery) store.Placement {
+	if e.Kind != store.EventMessageReceived {
+		return store.Placement{DueAt: e.CreatedAt}
+	}
+	if joinable(newest) {
+		return store.Placement{Join: true, DueAt: dueAt(w, newest.OpenedAt, e.CreatedAt)}
+	}
+	return store.Placement{DueAt: dueAt(w, e.CreatedAt, e.CreatedAt)}
+}
+
+func joinable(d *store.Delivery) bool {
+	return d != nil && d.State == store.DeliveryOpen && d.Attempts == 0 && d.EventCount < maxDeliveryEvents
+}
+
+func dueAt(w store.Webhook, openedAt, lastEventAt time.Time) time.Time {
+	quietEnd, maxWaitEnd := lastEventAt.Add(w.Quiet), openedAt.Add(w.MaxWait)
+	if quietEnd.Before(maxWaitEnd) {
+		return quietEnd
+	}
+	return maxWaitEnd
 }
 
 func (d *Dispatcher) outcome(a attempt, result Result, at time.Time) store.AttemptOutcome {
 	switch {
 	case result.Accepted():
 		return settled(store.DeliveryDelivered, result, at)
+	case result.Gone():
+		return disabling(settled(store.DeliveryFailed, result, at))
 	case result.Retryable() && retriesLeft(a.delivery.Attempts):
 		return retrying(result, at.Add(d.retryDelay(a.delivery.Attempts, result, at)))
 	}
@@ -38,6 +67,11 @@ func (d *Dispatcher) outcome(a attempt, result Result, at time.Time) store.Attem
 
 func settled(state string, result Result, at time.Time) store.AttemptOutcome {
 	return store.AttemptOutcome{State: state, Status: result.Status, Error: errorText(result), SettledAt: at}
+}
+
+func disabling(next store.AttemptOutcome) store.AttemptOutcome {
+	next.DisablesWebhook = true
+	return next
 }
 
 func retrying(result Result, dueAt time.Time) store.AttemptOutcome {

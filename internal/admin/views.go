@@ -107,6 +107,8 @@ type WebhookOptions struct {
 	Chats               string   `json:"chats,omitempty"`
 	Events              []string `json:"events"`
 	Content             string   `json:"content,omitempty"`
+	Quiet               string   `json:"quiet,omitempty"`
+	MaxWait             string   `json:"max_wait,omitempty"`
 }
 
 type AddWebhookRequest struct {
@@ -150,6 +152,19 @@ type RotatedWebhookSecret struct {
 
 type RemovedWebhook struct {
 	Name string `json:"name"`
+}
+
+type EnabledWebhook struct {
+	Name string `json:"name"`
+}
+
+type RedeliverRequest struct {
+	Since string `json:"since,omitempty"`
+}
+
+type RedeliveredWebhook struct {
+	Name       string `json:"name"`
+	Deliveries int    `json:"deliveries"`
 }
 
 type WebhookTest struct {
