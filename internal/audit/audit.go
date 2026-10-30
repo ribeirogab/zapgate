@@ -31,6 +31,8 @@ const (
 	ActionWebhookRemove    = "webhook_remove"
 	ActionWebhookTest      = "webhook_test"
 	ActionWebhookRotate    = "webhook_rotate_secret"
+	ActionWebhookEnable    = "webhook_enable"
+	ActionWebhookRedeliver = "webhook_redeliver"
 	RetentionDefault       = "default"
 )
 
@@ -155,6 +157,14 @@ func (l *Logger) WebhookTest(ctx context.Context, webhook string, status int, re
 		slog.String("webhook", webhook),
 		slog.Int("status", status),
 		slog.String("result", result),
+	)
+}
+
+func (l *Logger) WebhookRedeliver(ctx context.Context, webhook string, deliveries int) {
+	l.write(ctx, "admin",
+		slog.String("action", ActionWebhookRedeliver),
+		slog.String("webhook", webhook),
+		slog.Int("deliveries", deliveries),
 	)
 }
 

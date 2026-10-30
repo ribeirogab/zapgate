@@ -44,11 +44,12 @@ type Queue struct {
 }
 
 type AttemptOutcome struct {
-	State     string
-	DueAt     time.Time
-	Status    int
-	Error     string
-	SettledAt time.Time
+	State           string
+	DueAt           time.Time
+	Status          int
+	Error           string
+	SettledAt       time.Time
+	DisablesWebhook bool
 }
 
 const (
@@ -57,13 +58,15 @@ const (
 	sendableDelivery = `d.state IN ('open', 'retrying') AND NOT EXISTS (
   SELECT 1 FROM webhook_deliveries o
   WHERE o.webhook_id = d.webhook_id AND o.account_id = d.account_id AND o.chat_jid IS d.chat_jid
-    AND o.id < d.id AND o.state IN ('open', 'retrying'))`
+    AND o.id < d.id AND o.state IN ('open', 'retrying'))
+  AND d.webhook_id IN (` + enabledWebhookIDs + `)`
+	enabledWebhookIDs = `SELECT id FROM webhooks WHERE disabled_at IS NULL`
 )
 
 func (s *Store) QueueEvents(ctx context.Context, q Queue) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {
-		moved, err := moveCursor(ctx, tx, q.WebhookID, q.Cursor)
-		if err != nil || !moved {
+		takesEvents, err := moveCursor(ctx, tx, q.WebhookID, q.Cursor)
+		if err != nil || !takesEvents {
 			return err
 		}
 		for _, event := range q.Events {
@@ -75,13 +78,13 @@ func (s *Store) QueueEvents(ctx context.Context, q Queue) error {
 	})
 }
 
-func moveCursor(ctx context.Context, tx *sql.Tx, webhookID, cursor int64) (bool, error) {
-	result, err := tx.ExecContext(ctx, `UPDATE webhooks SET cursor = ? WHERE id = ? AND cursor < ?`, cursor, webhookID, cursor)
-	if err != nil {
-		return false, err
+func moveCursor(ctx context.Context, tx *sql.Tx, webhookID, cursor int64) (takesEvents bool, err error) {
+	err = tx.QueryRowContext(ctx, `UPDATE webhooks SET cursor = ? WHERE id = ? AND cursor < ? RETURNING disabled_at IS NULL`,
+		cursor, webhookID, cursor).Scan(&takesEvents)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
 	}
-	moved, err := result.RowsAffected()
-	return moved == 1, err
+	return takesEvents, err
 }
 
 func queueEvent(ctx context.Context, tx *sql.Tx, q Queue, e Event) error {
@@ -145,7 +148,8 @@ func (s *Store) NextDeliveryDue(ctx context.Context) (time.Time, bool, error) {
 func (s *Store) ClaimDelivery(ctx context.Context, id int64, leaseUntil time.Time) (Delivery, error) {
 	var delivery Delivery
 	err := s.inTx(ctx, func(tx *sql.Tx) error {
-		result, err := tx.ExecContext(ctx, `UPDATE webhook_deliveries SET attempts = attempts + 1, due_at = ? WHERE id = ? AND state IN (?, ?)`,
+		result, err := tx.ExecContext(ctx, `UPDATE webhook_deliveries SET attempts = attempts + 1, due_at = ?
+WHERE id = ? AND state IN (?, ?) AND webhook_id IN (`+enabledWebhookIDs+`)`,
 			millis(leaseUntil), id, DeliveryOpen, DeliveryRetrying)
 		if err != nil {
 			return err
@@ -160,10 +164,32 @@ func (s *Store) ClaimDelivery(ctx context.Context, id int64, leaseUntil time.Tim
 }
 
 func (s *Store) RecordAttempt(ctx context.Context, id int64, a AttemptOutcome) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE webhook_deliveries SET state = ?, due_at = coalesce(?, due_at), last_status = ?, last_error = ?, settled_at = ?
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `UPDATE webhook_deliveries SET state = ?, due_at = coalesce(?, due_at), last_status = ?, last_error = ?, settled_at = ?
 WHERE id = ?`,
-		a.State, optionalMillis(a.DueAt), optionalStatus(a.Status), optionalText(a.Error), optionalMillis(a.SettledAt), id)
+			a.State, optionalMillis(a.DueAt), optionalStatus(a.Status), optionalText(a.Error), optionalMillis(a.SettledAt), id)
+		if err != nil || !a.DisablesWebhook {
+			return err
+		}
+		return disableWebhookOf(ctx, tx, id, a.SettledAt)
+	})
+}
+
+func disableWebhookOf(ctx context.Context, tx *sql.Tx, deliveryID int64, at time.Time) error {
+	_, err := tx.ExecContext(ctx, `UPDATE webhooks SET disabled_at = ?
+WHERE id = (SELECT webhook_id FROM webhook_deliveries WHERE id = ?) AND disabled_at IS NULL`, millis(at), deliveryID)
 	return err
+}
+
+func (s *Store) RedeliverFailed(ctx context.Context, webhookID int64, failedSince, dueAt time.Time) (int, error) {
+	result, err := s.db.ExecContext(ctx, `UPDATE webhook_deliveries SET state = ?, attempts = 0, due_at = ?, settled_at = NULL
+WHERE webhook_id = ? AND state = ? AND settled_at >= ?`,
+		DeliveryRetrying, millis(dueAt), webhookID, DeliveryFailed, millis(failedSince))
+	if err != nil {
+		return 0, err
+	}
+	reopened, err := result.RowsAffected()
+	return int(reopened), err
 }
 
 func optionalStatus(status int) sql.NullInt64 {
