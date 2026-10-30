@@ -211,7 +211,11 @@ func chosenAccountIDs(ctx context.Context, tx *sql.Tx, allExisting bool, names [
 }
 
 func allAccountIDs(ctx context.Context, tx *sql.Tx) ([]int64, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT id FROM accounts`)
+	return queryIDs(ctx, tx, `SELECT id FROM accounts`)
+}
+
+func queryIDs(ctx context.Context, tx *sql.Tx, query string, args ...any) ([]int64, error) {
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

@@ -53,8 +53,9 @@ func TestWebhooksAddShowsTheSecretOnce(t *testing.T) {
 	if listed.Code != 0 {
 		t.Fatalf("exit %d, stderr %q", listed.Code, listed.Stderr)
 	}
-	rows := tableRows(t, listed.Stdout)
-	if len(rows) != 2 || rows[0] != webhookListHeader || rows[1] != "support-bot "+botURL+" work minimal enabled - 0 0 -" {
+	row := listedWebhook(t, h, "support-bot")
+	if len(tableRows(t, listed.Stdout)) != 2 || row["URL"] != botURL || row["ACCOUNTS"] != "work" || row["CHATS"] != "all" || row["EVENTS"] != "message.received" || row["CONTENT"] != "minimal" || row["STATE"] != "enabled" ||
+		row["LAST SUCCESS"] != "-" || row["PENDING"] != "0" || row["FAILED"] != "0" || row["LAST ERROR"] != "-" {
 		t.Fatalf("webhooks list %q", listed.Stdout)
 	}
 	if strings.Contains(listed.Stdout, secret) || strings.Contains(listed.Stdout, "whsec_") {
@@ -72,9 +73,9 @@ func TestWebhooksListWithoutWebhooks(t *testing.T) {
 	}
 }
 
-func addWebhook(t *testing.T, h *apptest.Harness, rx *apptest.Receiver, name string, accounts string) string {
+func addWebhook(t *testing.T, h *apptest.Harness, rx *apptest.Receiver, name string, accounts string, options ...string) string {
 	t.Helper()
-	added := h.CLI(t, "webhooks", "add", name, "--url", rx.URL, "--accounts", accounts)
+	added := h.CLI(t, append([]string{"webhooks", "add", name, "--url", rx.URL, "--accounts", accounts}, options...)...)
 	if added.Code != 0 {
 		t.Fatalf("add the webhook %s: exit %d, stderr %q", name, added.Code, added.Stderr)
 	}
@@ -228,7 +229,7 @@ func ownerGet(t *testing.T, h *apptest.Harness, path string) string {
 func TestOnlyTheCreateRouteReturnsTheSecret(t *testing.T) {
 	h := apptest.Start(t)
 
-	created, err := h.Owner.AddWebhook(context.Background(), admin.AddWebhookRequest{Name: "support-bot", URL: botURL, AllExistingAccounts: true})
+	created, err := h.Owner.AddWebhook(context.Background(), admin.AddWebhookRequest{Name: "support-bot", WebhookOptions: admin.WebhookOptions{URL: botURL, AllExistingAccounts: true}})
 
 	if err != nil || !strings.HasPrefix(created.Secret, "whsec_") || created.Webhook.Name != "support-bot" {
 		t.Fatalf("created %+v, error %v", created, err)
@@ -367,8 +368,8 @@ func TestWebhooksAllAccountsIsASnapshotOfTheExistingAccounts(t *testing.T) {
 	if !strings.HasPrefix(added.Stdout, "created the webhook support-bot (accounts: personal,work, events: message.received, content: minimal)\n") {
 		t.Fatalf("exit %d, stdout %q, stderr %q", added.Code, added.Stdout, added.Stderr)
 	}
-	if rows := tableRows(t, h.CLI(t, "webhooks", "list").Stdout); rows[1] != "support-bot "+botURL+" personal,work minimal enabled - 0 0 -" {
-		t.Fatalf("webhooks list %q", rows)
+	if row := listedWebhook(t, h, "support-bot"); row["ACCOUNTS"] != "personal,work" {
+		t.Fatalf("webhooks list %v", row)
 	}
 }
 
@@ -380,8 +381,8 @@ func TestWebhooksAllAccountsWithoutAccounts(t *testing.T) {
 	if !strings.HasPrefix(added.Stdout, "created the webhook support-bot (accounts: none, events: message.received, content: minimal)\n") {
 		t.Fatalf("exit %d, stdout %q, stderr %q", added.Code, added.Stdout, added.Stderr)
 	}
-	if rows := tableRows(t, h.CLI(t, "webhooks", "list").Stdout); rows[1] != "support-bot "+botURL+" - minimal enabled - 0 0 -" {
-		t.Fatalf("webhooks list %q", rows)
+	if row := listedWebhook(t, h, "support-bot"); row["ACCOUNTS"] != "-" {
+		t.Fatalf("webhooks list %v", row)
 	}
 }
 
@@ -416,9 +417,7 @@ func TestRemovingAnAccountRemovesItFromEveryWebhook(t *testing.T) {
 		t.Fatalf("remove the account: exit %d, stderr %q", result.Code, result.Stderr)
 	}
 
-	rows := tableRows(t, h.CLI(t, "webhooks", "list").Stdout)
-	want := []string{webhookListHeader, "sales-bot " + botURL + " - minimal enabled - 0 0 -", "support-bot " + botURL + " personal minimal enabled - 0 0 -"}
-	if strings.Join(rows, "\n") != strings.Join(want, "\n") {
-		t.Fatalf("webhooks list %q, want %q", rows, want)
+	if sales, support := listedWebhook(t, h, "sales-bot"), listedWebhook(t, h, "support-bot"); sales["ACCOUNTS"] != "-" || support["ACCOUNTS"] != "personal" {
+		t.Fatalf("webhooks list %v and %v", sales, support)
 	}
 }

@@ -149,13 +149,7 @@ func accountChoice(value string) (bool, []string) {
 	if value == allAccounts {
 		return true, nil
 	}
-	names := []string{}
-	for _, name := range strings.Split(value, ",") {
-		if name = strings.TrimSpace(name); name != "" {
-			names = append(names, name)
-		}
-	}
-	return false, names
+	return false, commaList(value)
 }
 
 func accessSet(ctx context.Context, args []string, std IO) error {
