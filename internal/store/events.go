@@ -7,7 +7,10 @@ import (
 	"time"
 )
 
-const EventMessageReceived = "message.received"
+const (
+	EventMessageReceived = "message.received"
+	EventAccountState    = "account.state"
+)
 
 type Event struct {
 	Seq       int64
@@ -26,6 +29,13 @@ func journalReceived(ctx context.Context, tx *sql.Tx, accountID int64, msg Messa
 		return nil
 	}
 	return insertEvent(ctx, tx, Event{AccountID: accountID, Kind: EventMessageReceived, ChatJID: msg.ChatJID, MessageID: msg.ID, CreatedAt: at})
+}
+
+func journalState(ctx context.Context, tx *sql.Tx, accountID int64, state string, at time.Time) error {
+	if state == AccountPairing {
+		return nil
+	}
+	return insertEvent(ctx, tx, Event{AccountID: accountID, Kind: EventAccountState, State: state, CreatedAt: at})
 }
 
 func insertEvent(ctx context.Context, tx *sql.Tx, e Event) error {

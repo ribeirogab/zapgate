@@ -19,13 +19,14 @@ import (
 const LogoutTimeout = 20 * time.Second
 
 type Deps struct {
-	Store    *store.Store
-	WhatsApp whatsapp.Port
-	Clock    clock.Clock
-	Log      *slog.Logger
-	Changed  func(ctx context.Context)
-	Ingest   func(ctx context.Context, accountID int64, client whatsapp.Client, evt any)
-	Removed  func(ctx context.Context, account store.Account) error
+	Store      *store.Store
+	WhatsApp   whatsapp.Port
+	Clock      clock.Clock
+	Log        *slog.Logger
+	Changed    func(ctx context.Context)
+	StateSaved func()
+	Ingest     func(ctx context.Context, accountID int64, client whatsapp.Client, evt any)
+	Removed    func(ctx context.Context, account store.Account) error
 }
 
 type Manager struct {
@@ -161,7 +162,7 @@ func (m *Manager) reconnect(ctx context.Context, account store.Account) {
 	if errors.Is(err, whatsapp.ErrNoDevice) {
 		cancel()
 		m.deps.Log.Warn("the WhatsApp session of an account is gone", "account", account.Name)
-		m.save(m.deps.Store.SetAccountLoggedOut(ctx, account.ID))
+		m.setLoggedOut(ctx, account.ID)
 		return
 	}
 	if err != nil {
@@ -169,7 +170,7 @@ func (m *Manager) reconnect(ctx context.Context, account store.Account) {
 		m.deps.Log.Error("cannot open the WhatsApp session of an account", "account", account.Name, "error", err)
 		return
 	}
-	m.save(m.deps.Store.SetAccountState(ctx, account.ID, store.AccountDisconnected))
+	m.setState(ctx, account.ID, store.AccountDisconnected)
 	acc := m.attach(account, client, life, cancel)
 	acc.mark(func(s *pairState) { s.paired = true })
 	if err := client.Connect(); err != nil {
@@ -225,16 +226,16 @@ func (m *Manager) handle(acc *liveAccount, evt any) {
 		m.save(m.deps.Store.SetAccountPaired(ctx, acc.id, e.ID.String(), "+"+e.ID.User))
 		acc.mark(func(s *pairState) { s.paired = true })
 	case *events.Connected:
-		m.save(m.deps.Store.SetAccountState(ctx, acc.id, store.AccountConnected))
+		m.setState(ctx, acc.id, store.AccountConnected)
 		m.saveProfileName(ctx, acc, acc.client.ProfileName())
 		acc.mark(func(s *pairState) { s.connected = true })
 	case *events.Disconnected, *events.StreamReplaced, *events.TemporaryBan:
 		if acc.state().paired {
-			m.save(m.deps.Store.SetAccountState(ctx, acc.id, store.AccountDisconnected))
+			m.setState(ctx, acc.id, store.AccountDisconnected)
 		}
 	case *events.LoggedOut:
 		m.deps.Log.Warn("WhatsApp logged out an account", "account", acc.name, "reason", e.Reason.String())
-		m.save(m.deps.Store.SetAccountLoggedOut(ctx, acc.id))
+		m.setLoggedOut(ctx, acc.id)
 		m.detach(acc.id)
 		acc.mark(func(s *pairState) { s.loggedOut = true })
 	case *events.PushNameSetting:
@@ -264,6 +265,21 @@ func (m *Manager) Client(accountID int64) (whatsapp.Client, bool) {
 func (m *Manager) saveProfileName(ctx context.Context, acc *liveAccount, name string) {
 	if name != "" {
 		m.save(m.deps.Store.SetAccountProfileName(ctx, acc.id, name))
+	}
+}
+
+func (m *Manager) setState(ctx context.Context, id int64, state string) {
+	m.saveState(m.deps.Store.SetAccountState(ctx, id, state, m.deps.Clock.Now()))
+}
+
+func (m *Manager) setLoggedOut(ctx context.Context, id int64) {
+	m.saveState(m.deps.Store.SetAccountLoggedOut(ctx, id, m.deps.Clock.Now()))
+}
+
+func (m *Manager) saveState(err error) {
+	m.save(err)
+	if err == nil {
+		m.deps.StateSaved()
 	}
 }
 
