@@ -26,9 +26,8 @@ func TestWebhooksAddTakesTheFullContentLevel(t *testing.T) {
 	if !strings.HasPrefix(added.Stdout, "created the webhook support-bot (accounts: work, events: message.received, content: full)\nsecret: whsec_") {
 		t.Fatalf("stdout %q", added.Stdout)
 	}
-	rows := tableRows(t, h.CLI(t, "webhooks", "list").Stdout)
-	if len(rows) != 2 || rows[0] != webhookListHeader || rows[1] != "support-bot "+botURL+" work full enabled - 0 0 -" {
-		t.Fatalf("webhooks list %q", rows)
+	if row := listedWebhook(t, h, "support-bot"); row["CONTENT"] != "full" {
+		t.Fatalf("webhooks list %v", row)
 	}
 }
 

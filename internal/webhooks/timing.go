@@ -1,6 +1,9 @@
 package webhooks
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 const (
 	maxQuiet   = 60 * time.Second
@@ -12,7 +15,15 @@ type deliveryTiming struct {
 	maxWait time.Duration
 }
 
-var defaultTiming = deliveryTiming{quiet: DefaultQuiet, maxWait: DefaultMaxWait}
+func (o Options) applyTiming(_ context.Context, c *config) error {
+	current := deliveryTiming{quiet: c.webhook.Quiet, maxWait: c.webhook.MaxWait}
+	next, err := current.with(o.Quiet, o.MaxWait)
+	if err != nil {
+		return err
+	}
+	c.webhook.Quiet, c.webhook.MaxWait = next.quiet, next.maxWait
+	return nil
+}
 
 func (t deliveryTiming) with(quiet, maxWait string) (deliveryTiming, error) {
 	var (
