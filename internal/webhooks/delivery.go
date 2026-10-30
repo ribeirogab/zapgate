@@ -109,7 +109,10 @@ func (d *Dispatcher) post(ctx context.Context, a attempt) (Post, error) {
 
 func (d *Dispatcher) body(ctx context.Context, a attempt) (Body, error) {
 	data, err := d.receivedData(ctx, a)
-	return newBody(EventMessageReceived, a.at, data), err
+	if err != nil {
+		return Body{}, err
+	}
+	return receivedBody(a, data)
 }
 
 func (d *Dispatcher) settle(ctx context.Context, a attempt, result Result) {

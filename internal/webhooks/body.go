@@ -8,6 +8,7 @@ import (
 type Body struct {
 	Type      string `json:"type"`
 	Timestamp string `json:"timestamp"`
+	Notice    string `json:"notice,omitempty"`
 	Data      any    `json:"data"`
 }
 

@@ -12,6 +12,7 @@ import (
 
 const (
 	urlFlag          = "--url"
+	contentFlag      = "--content"
 	quietFlag        = "--quiet"
 	maxWaitFlag      = "--max-wait"
 	noWebhookMessage = "no webhook yet"
@@ -90,12 +91,35 @@ func (o webhookOptions) request() admin.AddWebhookRequest {
 	}
 }
 
+func takeContent(args []string) (string, []string, error) {
+	var content string
+	rest := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		if strings.SplitN(args[i], "=", 2)[0] != contentFlag {
+			rest = append(rest, args[i])
+			continue
+		}
+		value, next, err := flagValue(args, i)
+		if err != nil {
+			return "", nil, err
+		}
+		content, i = value, next
+	}
+	return content, rest, nil
+}
+
 func webhooksAdd(ctx context.Context, args []string, std IO) error {
+	content, args, err := takeContent(args)
+	if err != nil {
+		return err
+	}
 	opts, err := parseWebhookOptions(args)
 	if err != nil || opts.url == "" || opts.accounts == "" {
 		return errUsage
 	}
-	created, err := ownerClient(std).AddWebhook(ctx, opts.request())
+	req := opts.request()
+	req.Content = content
+	created, err := ownerClient(std).AddWebhook(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -124,9 +148,9 @@ func webhooksList(ctx context.Context, args []string, std IO) error {
 	}
 	rows := make([][]string, 0, len(list))
 	for _, w := range list {
-		rows = append(rows, []string{w.Name, w.URL, listOrDash(w.Accounts), w.State})
+		rows = append(rows, []string{w.Name, w.URL, listOrDash(w.Accounts), w.Content, w.State})
 	}
-	return writeTable(std.Stdout, []string{"NAME", "URL", "ACCOUNTS", "STATE"}, rows)
+	return writeTable(std.Stdout, []string{"NAME", "URL", "ACCOUNTS", "CONTENT", "STATE"}, rows)
 }
 
 func webhooksRemove(ctx context.Context, args []string, std IO) error {

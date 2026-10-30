@@ -105,6 +105,7 @@ type AddWebhookRequest struct {
 	URL                 string   `json:"url"`
 	Accounts            []string `json:"accounts"`
 	AllExistingAccounts bool     `json:"all_existing_accounts"`
+	Content             string   `json:"content,omitempty"`
 	Quiet               string   `json:"quiet,omitempty"`
 	MaxWait             string   `json:"max_wait,omitempty"`
 }
