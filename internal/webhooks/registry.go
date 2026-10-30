@@ -19,6 +19,7 @@ type RegistryDeps struct {
 	Clock    clock.Clock
 	Sender   *Sender
 	Resolver Resolver
+	Wake     func()
 }
 
 type Registry struct {

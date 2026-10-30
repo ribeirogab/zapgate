@@ -15,8 +15,34 @@ func (h *handler) registerWebhookRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /webhooks", h.serveCreated(h.addWebhook))
 	mux.HandleFunc("GET /webhooks", h.serve(h.listWebhooks))
 	mux.HandleFunc("DELETE /webhooks/{name}", h.serve(h.removeWebhook))
+	mux.HandleFunc("POST /webhooks/{name}/enable", h.serve(h.enableWebhook))
 	mux.HandleFunc("POST /webhooks/{name}/test", h.serve(h.testWebhook))
 	mux.HandleFunc("POST /webhooks/{name}/secret", h.serve(h.rotateWebhookSecret))
+	mux.HandleFunc("POST /webhooks/{name}/redeliver", h.serve(h.redeliverWebhook))
+}
+
+func (h *handler) redeliverWebhook(r *http.Request) (any, error) {
+	var req RedeliverRequest
+	if err := decodeBody(r, &req); err != nil {
+		return nil, err
+	}
+	name := r.PathValue("name")
+	webhook, reopened, err := h.deps.Webhooks.Redeliver(r.Context(), name, req.Since)
+	if err != nil {
+		return nil, webhookError(name, err)
+	}
+	h.deps.Audit.WebhookRedeliver(r.Context(), webhook.Name, reopened)
+	return RedeliveredWebhook{Name: webhook.Name, Deliveries: reopened}, nil
+}
+
+func (h *handler) enableWebhook(r *http.Request) (any, error) {
+	name := r.PathValue("name")
+	enabled, err := h.deps.Webhooks.Enable(r.Context(), name)
+	if err != nil {
+		return nil, webhookError(name, err)
+	}
+	h.deps.Audit.WebhookAction(r.Context(), audit.ActionWebhookEnable, enabled.Name)
+	return EnabledWebhook{Name: enabled.Name}, nil
 }
 
 func (h *handler) rotateWebhookSecret(r *http.Request) (any, error) {

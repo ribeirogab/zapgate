@@ -170,10 +170,18 @@ func (s *Store) DeleteWebhook(ctx context.Context, name string) (Webhook, error)
 }
 
 func (s *Store) RotateWebhookSecret(ctx context.Context, name, secret string, previousSecretUntil time.Time) (Webhook, error) {
+	return s.updateWebhook(ctx, name, `previous_secret = secret, previous_secret_until = ?, secret = ?`, millis(previousSecretUntil), secret)
+}
+
+func (s *Store) EnableWebhook(ctx context.Context, name string) (Webhook, error) {
+	return s.updateWebhook(ctx, name, `disabled_at = NULL,
+  cursor = CASE WHEN disabled_at IS NULL THEN cursor ELSE max(cursor, (SELECT coalesce(max(seq), 0) FROM events)) END`)
+}
+
+func (s *Store) updateWebhook(ctx context.Context, name, set string, args ...any) (Webhook, error) {
 	var webhook Webhook
 	err := s.inTx(ctx, func(tx *sql.Tx) error {
-		result, err := tx.ExecContext(ctx, `UPDATE webhooks SET previous_secret = secret, previous_secret_until = ?, secret = ? WHERE name = ?`,
-			millis(previousSecretUntil), secret, name)
+		result, err := tx.ExecContext(ctx, `UPDATE webhooks SET `+set+` WHERE name = ?`, append(args, name)...)
 		if err != nil {
 			return err
 		}

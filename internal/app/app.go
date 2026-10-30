@@ -182,7 +182,7 @@ func (a *App) wire(deps Deps, outbox *media.Outbox) {
 		OwnerPassword: a.cfg.OwnerPassword,
 		Media:         a.media,
 		Retention:     expiry,
-		Webhooks:      webhooks.NewRegistry(webhooks.RegistryDeps{Store: a.store, Clock: deps.Clock, Sender: sender, Resolver: hosts}),
+		Webhooks:      webhooks.NewRegistry(webhooks.RegistryDeps{Store: a.store, Clock: deps.Clock, Sender: sender, Resolver: hosts, Wake: dispatcher.Wake}),
 
 		DefaultRetentionMonths: a.cfg.RetentionMonths,
 	})

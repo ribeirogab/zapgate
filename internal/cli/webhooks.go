@@ -13,6 +13,7 @@ import (
 const (
 	urlFlag          = "--url"
 	contentFlag      = "--content"
+	sinceFlag        = "--since"
 	noWebhookMessage = "no webhook yet"
 )
 
@@ -20,9 +21,11 @@ func webhooks(ctx context.Context, args []string, std IO) error {
 	cmd, rest, err := subcommand(args, map[string]command{
 		"add":           webhooksAdd,
 		"list":          webhooksList,
+		"enable":        webhooksEnable,
 		"remove":        webhooksRemove,
 		"test":          webhooksTest,
 		"rotate-secret": webhooksRotateSecret,
+		"redeliver":     webhooksRedeliver,
 	})
 	if err != nil {
 		return err
@@ -143,6 +146,18 @@ func deliveryErrorLabel(e *admin.DeliveryError) string {
 	return statusLine(e.Status)
 }
 
+func webhooksEnable(ctx context.Context, args []string, std IO) error {
+	if len(args) != 1 {
+		return errUsage
+	}
+	enabled, err := ownerClient(std).EnableWebhook(ctx, args[0])
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(std.Stdout, "enabled the webhook %s\n", enabled.Name)
+	return nil
+}
+
 func webhooksRemove(ctx context.Context, args []string, std IO) error {
 	if len(args) != 1 {
 		return errUsage
@@ -185,6 +200,27 @@ func webhooksRotateSecret(ctx context.Context, args []string, std IO) error {
 	fmt.Fprintf(std.Stdout, "rotated the secret of the webhook %s; the old secret also signs until %s\n", rotated.Name, rotated.PreviousSecretUntil)
 	printSecretOnce(std, rotated.Secret)
 	return nil
+}
+
+func webhooksRedeliver(ctx context.Context, args []string, std IO) error {
+	var since string
+	name, err := parseNamedArgs(args, map[string]*string{sinceFlag: &since})
+	if err != nil {
+		return err
+	}
+	redelivered, err := ownerClient(std).RedeliverWebhook(ctx, name, admin.RedeliverRequest{Since: since})
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(std.Stdout, "opened again %s of the webhook %s\n", failedDeliveries(redelivered.Deliveries), redelivered.Name)
+	return nil
+}
+
+func failedDeliveries(count int) string {
+	if count == 1 {
+		return "1 failed delivery"
+	}
+	return fmt.Sprintf("%d failed deliveries", count)
 }
 
 func statusLine(status int) string {
