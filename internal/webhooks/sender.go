@@ -29,6 +29,7 @@ const (
 	headerID          = "Webhook-Id"
 	headerTimestamp   = "Webhook-Timestamp"
 	headerSignature   = "Webhook-Signature"
+	headerRetryAfter  = "Retry-After"
 )
 
 type Post struct {
@@ -41,12 +42,29 @@ type Post struct {
 }
 
 type Result struct {
-	Status int
-	Err    error
+	Status     int
+	RetryAfter string
+	Err        error
 }
 
 func (r Result) Accepted() bool {
 	return r.Err == nil && r.Status >= 200 && r.Status <= 299
+}
+
+func (r Result) Retryable() bool {
+	switch {
+	case r.Err != nil:
+		return true
+	case r.Status == http.StatusRequestTimeout, r.Status == http.StatusTooManyRequests:
+		return true
+	case r.Status >= 300 && r.Status <= 399:
+		return true
+	}
+	return r.Status >= 500
+}
+
+func (r Result) AsksToWait() bool {
+	return r.RetryAfter != "" && (r.Status == http.StatusTooManyRequests || r.Status == http.StatusServiceUnavailable)
 }
 
 func (r Result) Blocked() bool {
@@ -103,7 +121,7 @@ func (s *Sender) Send(ctx context.Context, p Post) Result {
 	}
 	defer resp.Body.Close()
 	io.Copy(io.Discard, io.LimitReader(resp.Body, MaxResponseBytes))
-	return Result{Status: resp.StatusCode}
+	return Result{Status: resp.StatusCode, RetryAfter: resp.Header.Get(headerRetryAfter)}
 }
 
 func newRequest(ctx context.Context, p Post) (*http.Request, error) {

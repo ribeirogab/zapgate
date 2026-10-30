@@ -15,6 +15,9 @@ var tableGap = regexp.MustCompile(`\s{2,}`)
 func listedWebhook(t *testing.T, h *apptest.Harness, name string) map[string]string {
 	t.Helper()
 	listed := h.CLI(t, "webhooks", "list")
+	if listed.Code != 0 {
+		t.Fatalf("webhooks list: exit %d, stderr %q", listed.Code, listed.Stderr)
+	}
 	lines := strings.Split(strings.TrimSpace(listed.Stdout), "\n")
 	header := tableGap.Split(lines[0], -1)
 	for _, line := range lines[1:] {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/ribeirogab/zapgate/internal/admin"
@@ -190,6 +191,20 @@ var webhookColumns = []webhookColumn{
 	{header: "EVENTS", value: func(w admin.WebhookView) string { return strings.Join(w.Events, ",") }},
 	{header: "CONTENT", value: func(w admin.WebhookView) string { return w.Content }},
 	{header: "STATE", value: func(w admin.WebhookView) string { return w.State }},
+	{header: "LAST SUCCESS", value: func(w admin.WebhookView) string { return orDash(w.LastSuccess) }},
+	{header: "PENDING", value: func(w admin.WebhookView) string { return strconv.Itoa(w.Pending) }},
+	{header: "FAILED", value: func(w admin.WebhookView) string { return strconv.Itoa(w.Failed) }},
+	{header: "LAST ERROR", value: func(w admin.WebhookView) string { return deliveryErrorLabel(w.LastError) }},
+}
+
+func deliveryErrorLabel(e *admin.DeliveryError) string {
+	switch {
+	case e == nil:
+		return noValue
+	case e.Error != "":
+		return e.Error
+	}
+	return statusLine(e.Status)
 }
 
 func webhooksRemove(ctx context.Context, args []string, std IO) error {

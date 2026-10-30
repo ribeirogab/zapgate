@@ -44,6 +44,7 @@ type Registered struct {
 	store.Webhook
 	Accounts    []string
 	ListedChats []string
+	Deliveries  store.DeliverySummary
 }
 
 func (r Registration) validate(ctx context.Context, resolver Resolver) (config, error) {
@@ -142,7 +143,11 @@ func (r *Registry) registered(ctx context.Context, webhook store.Webhook) (Regis
 		names = append(names, account.Name)
 	}
 	chats, err := r.listedChatJIDs(ctx, webhook)
-	return Registered{Webhook: webhook, Accounts: names, ListedChats: chats}, err
+	if err != nil {
+		return Registered{}, err
+	}
+	deliveries, err := r.deps.Store.SummarizeDeliveries(ctx, webhook.ID)
+	return Registered{Webhook: webhook, Accounts: names, ListedChats: chats, Deliveries: deliveries}, err
 }
 
 func newTestID() string {

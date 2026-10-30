@@ -9,6 +9,7 @@ import (
 type Clock interface {
 	Now() time.Time
 	After(d time.Duration) <-chan time.Time
+	At(t time.Time) <-chan time.Time
 }
 
 type systemClock struct{}
@@ -16,6 +17,8 @@ type systemClock struct{}
 func (systemClock) Now() time.Time { return time.Now() }
 
 func (systemClock) After(d time.Duration) <-chan time.Time { return time.After(d) }
+
+func (systemClock) At(t time.Time) <-chan time.Time { return time.After(time.Until(t)) }
 
 func System() Clock { return systemClock{} }
 
@@ -41,7 +44,17 @@ func (m *Manual) Now() time.Time {
 func (m *Manual) After(d time.Duration) <-chan time.Time {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	timer := manualTimer{at: m.now.Add(d), fire: make(chan time.Time, 1)}
+	return m.timerAt(m.now.Add(d))
+}
+
+func (m *Manual) At(t time.Time) <-chan time.Time {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.timerAt(t)
+}
+
+func (m *Manual) timerAt(t time.Time) <-chan time.Time {
+	timer := manualTimer{at: t, fire: make(chan time.Time, 1)}
 	m.timers = append(m.timers, timer)
 	m.fireDue()
 	return timer.fire
