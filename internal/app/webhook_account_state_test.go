@@ -50,7 +50,7 @@ func TestARestartWhileOfflineSendsNoSecondDisconnect(t *testing.T) {
 	rx := h.StartReceiver(t)
 	addWebhook(t, h, rx, "account-watch", "work", "--events", "account.state")
 	h.WhatsApp.DropConnection(workPhone)
-	rx.Await(t, 1)
+	awaitAttempts(t, h, 1)
 
 	h.Restart(t)
 	h.WhatsApp.RestoreConnection(workPhone)
