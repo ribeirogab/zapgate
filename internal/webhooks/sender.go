@@ -67,6 +67,10 @@ func (r Result) AsksToWait() bool {
 	return r.RetryAfter != "" && (r.Status == http.StatusTooManyRequests || r.Status == http.StatusServiceUnavailable)
 }
 
+func (r Result) Gone() bool {
+	return r.Err == nil && r.Status == http.StatusGone
+}
+
 func (r Result) Blocked() bool {
 	var blocked *BlockedAddressError
 	return errors.As(r.Err, &blocked)
