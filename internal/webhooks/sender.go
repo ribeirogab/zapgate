@@ -74,6 +74,10 @@ func (r Result) Unanswered() bool {
 	return r.Sent && r.Err != nil
 }
 
+func (r Result) Gone() bool {
+	return r.Err == nil && r.Status == http.StatusGone
+}
+
 func (r Result) Blocked() bool {
 	var blocked *BlockedAddressError
 	return errors.As(r.Err, &blocked)

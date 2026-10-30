@@ -30,6 +30,8 @@ func (d *Dispatcher) outcome(a attempt, result Result, at time.Time) store.Attem
 	switch {
 	case result.Accepted():
 		return settled(store.DeliveryDelivered, result, at)
+	case result.Gone():
+		return disabling(settled(store.DeliveryFailed, result, at))
 	case a.webhook.Format == FormatClaudeRoutine && result.Unanswered():
 		return settled(store.DeliveryFailed, result, at)
 	case result.Retryable() && retriesLeft(a.delivery.Attempts):
@@ -40,6 +42,11 @@ func (d *Dispatcher) outcome(a attempt, result Result, at time.Time) store.Attem
 
 func settled(state string, result Result, at time.Time) store.AttemptOutcome {
 	return store.AttemptOutcome{State: state, Status: result.Status, Error: errorText(result), SettledAt: at}
+}
+
+func disabling(next store.AttemptOutcome) store.AttemptOutcome {
+	next.DisablesWebhook = true
+	return next
 }
 
 func retrying(result Result, dueAt time.Time) store.AttemptOutcome {

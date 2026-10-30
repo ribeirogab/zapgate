@@ -32,9 +32,11 @@ const (
       [--header "<name>: <value>"]...
   zapgate webhooks list
   zapgate webhooks set <name> [the options of add]
+  zapgate webhooks enable <name>
   zapgate webhooks remove <name>
   zapgate webhooks test <name>
   zapgate webhooks rotate-secret <name>
+  zapgate webhooks redeliver <name> [--since <duration>]
   zapgate password
 `
 )

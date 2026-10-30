@@ -25,6 +25,7 @@ type RegistryDeps struct {
 	Sender   *Sender
 	Resolver Resolver
 	Clients  Clients
+	Wake     func()
 }
 
 type Registry struct {
