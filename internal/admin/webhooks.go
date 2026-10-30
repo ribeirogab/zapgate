@@ -81,6 +81,8 @@ func (o WebhookOptions) options() webhooks.Options {
 		Chats:               o.Chats,
 		Events:              o.Events,
 		Content:             o.Content,
+		Quiet:               o.Quiet,
+		MaxWait:             o.MaxWait,
 	}
 }
 

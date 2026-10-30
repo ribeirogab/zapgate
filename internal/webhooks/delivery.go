@@ -9,7 +9,10 @@ import (
 	"github.com/ribeirogab/zapgate/internal/store"
 )
 
-const deliveryIDPrefix = "dlv_"
+const (
+	deliveryIDPrefix  = "dlv_"
+	maxDeliveryEvents = 100
+)
 
 type attempt struct {
 	webhook  store.Webhook
@@ -22,8 +25,32 @@ func deliveryID(d store.Delivery) string {
 	return deliveryIDPrefix + strconv.FormatInt(d.ID, 10)
 }
 
-func place(e store.Event, _ *store.Delivery) store.Placement {
-	return store.Placement{DueAt: e.CreatedAt}
+func placer(w store.Webhook) func(store.Event, *store.Delivery) store.Placement {
+	return func(e store.Event, newest *store.Delivery) store.Placement {
+		return place(w, e, newest)
+	}
+}
+
+func place(w store.Webhook, e store.Event, newest *store.Delivery) store.Placement {
+	if e.Kind != store.EventMessageReceived {
+		return store.Placement{DueAt: e.CreatedAt}
+	}
+	if joinable(newest) {
+		return store.Placement{Join: true, DueAt: dueAt(w, newest.OpenedAt, e.CreatedAt)}
+	}
+	return store.Placement{DueAt: dueAt(w, e.CreatedAt, e.CreatedAt)}
+}
+
+func joinable(d *store.Delivery) bool {
+	return d != nil && d.State == store.DeliveryOpen && d.Attempts == 0 && d.EventCount < maxDeliveryEvents
+}
+
+func dueAt(w store.Webhook, openedAt, lastEventAt time.Time) time.Time {
+	quietEnd, maxWaitEnd := lastEventAt.Add(w.Quiet), openedAt.Add(w.MaxWait)
+	if quietEnd.Before(maxWaitEnd) {
+		return quietEnd
+	}
+	return maxWaitEnd
 }
 
 func (d *Dispatcher) outcome(a attempt, result Result, at time.Time) store.AttemptOutcome {

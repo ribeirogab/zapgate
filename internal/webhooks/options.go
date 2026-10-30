@@ -17,6 +17,8 @@ type Options struct {
 	Chats               string
 	Events              []string
 	Content             string
+	Quiet               string
+	MaxWait             string
 }
 
 type config struct {
@@ -48,6 +50,7 @@ func (o Options) apply(ctx context.Context, resolver Resolver, c config) (config
 		o.applyEvents,
 		o.applyChats,
 		o.applyContent,
+		o.applyTiming,
 	}
 	for _, step := range steps {
 		if err := step(ctx, &c); err != nil {
