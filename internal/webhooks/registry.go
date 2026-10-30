@@ -131,6 +131,7 @@ func (r *Registry) Test(ctx context.Context, name string) (store.Webhook, Result
 		Secrets:   SigningSecrets(webhook, now),
 		Headers:   outgoingHeaders(webhook),
 	})
+	r.deps.Wake()
 	return webhook, result, nil
 }
 

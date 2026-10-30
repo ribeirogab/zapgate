@@ -56,6 +56,7 @@ CREATE TABLE webhook_deliveries (
   opened_at INTEGER NOT NULL,
   due_at INTEGER NOT NULL,
   attempts INTEGER NOT NULL DEFAULT 0,
+  recorded_attempts INTEGER NOT NULL DEFAULT 0,
   last_status INTEGER,
   last_error TEXT,
   settled_at INTEGER

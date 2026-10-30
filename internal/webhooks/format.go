@@ -18,16 +18,24 @@ type routineBody struct {
 	Text string `json:"text"`
 }
 
+func firesARoutine(webhook store.Webhook) bool {
+	return webhook.Format == FormatClaudeRoutine
+}
+
+func dropsDuplicates(webhook store.Webhook) bool {
+	return !firesARoutine(webhook)
+}
+
 func formatted(webhook store.Webhook, body Body) ([]byte, error) {
 	encoded, err := encode(body)
-	if err != nil || webhook.Format != FormatClaudeRoutine {
+	if err != nil || !firesARoutine(webhook) {
 		return encoded, err
 	}
 	return json.Marshal(routineBody{Text: string(encoded)})
 }
 
 func outgoingHeaders(webhook store.Webhook) map[string]string {
-	if webhook.Format != FormatClaudeRoutine {
+	if !firesARoutine(webhook) {
 		return webhook.Headers
 	}
 	headers := map[string]string{headerAnthropicBeta: routineBeta, headerAnthropicVersion: routineAPIVersion}

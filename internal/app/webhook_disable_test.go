@@ -67,6 +67,32 @@ func TestADisabledWebhookDropsItsEventsAndEnableLetsNewEventsReachIt(t *testing.
 	requireColumns(t, h, "support-bot", map[string]string{"STATE": "enabled", "PENDING": "0", "FAILED": "1"})
 }
 
+func TestAMessageDroppedWhileTheWebhookWasDisabledDoesNotComeBackInTheOpenDelivery(t *testing.T) {
+	h := apptest.Start(t)
+	h.AddAccount(t, "work", workPhone, "Alex")
+	rx := h.StartReceiver(t, apptest.Reply(http.StatusGone), apptest.Reply(http.StatusOK))
+	addWebhook(t, h, rx, "support-bot", "work", "--quiet", "60s", "--max-wait", "10m")
+	receive(h, joaoJID, "3EB0J1")
+	h.Clock.Advance(30 * time.Second)
+	receive(h, mariaJID, "3EB0A1")
+	awaitJournalRead(t, h)
+	h.Clock.Advance(30 * time.Second)
+	awaitAttempts(t, h, 1)
+	receive(h, mariaJID, "3EB0A2")
+	awaitJournalRead(t, h)
+	h.CLI(t, "webhooks", "enable", "support-bot")
+
+	receive(h, mariaJID, "3EB0A3")
+	h.Clock.Advance(time.Minute)
+
+	if body := deliveryWithID(t, rx.Await(t, 2), "dlv_2"); body.ids() != "3EB0A1" {
+		t.Fatalf("dlv_2 has %s, want only 3EB0A1", body.ids())
+	}
+	if body := deliveryWithID(t, rx.Await(t, 3), "dlv_3"); body.ids() != "3EB0A3" {
+		t.Fatalf("dlv_3 has %s, want only 3EB0A3", body.ids())
+	}
+}
+
 func TestADisabledWebhookHoldsItsPendingDeliveriesUntilItIsEnabled(t *testing.T) {
 	h := apptest.Start(t)
 	h.AddAccount(t, "work", workPhone, "Alex")

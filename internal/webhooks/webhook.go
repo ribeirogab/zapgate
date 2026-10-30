@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	EventMessageReceived = "message.received"
-	EventAccountState    = "account.state"
+	EventMessageReceived = store.EventMessageReceived
+	EventAccountState    = store.EventAccountState
 	eventWebhookTest     = "webhook.test"
 )
 

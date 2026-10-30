@@ -42,18 +42,18 @@ type contactCardView struct {
 }
 
 func (r *receivedData) addThirdParty(chat store.Chat, messages []store.Message) {
-	r.Chat.Name = short(chat.Name)
+	r.Chat.Name = capped(chat.Name)
 	for i, msg := range messages {
-		r.Messages[i].Sender.Name = short(msg.SenderName)
+		r.Messages[i].Sender.Name = capped(msg.SenderName)
 		r.Messages[i].ThirdParty = thirdPartyOf(msg)
 	}
 }
 
 func thirdPartyOf(msg store.Message) *thirdPartyContent {
-	text, truncated := cut(msg.Text, maxTextRunes)
+	text, truncated := firstRunes(msg.Text, maxTextRunes)
 	content := &thirdPartyContent{Text: text, TextTruncated: truncated}
 	if msg.Media != nil {
-		content.FileName = short(msg.Media.FileName)
+		content.FileName = capped(msg.Media.FileName)
 	}
 	content.addDetails(msg.Details)
 	return content
@@ -64,31 +64,31 @@ func (c *thirdPartyContent) addDetails(details *store.Details) {
 		return
 	}
 	if poll := details.Poll; poll != nil {
-		c.Poll = &pollView{Options: shortAll(poll.Options, maxPollOptions), MaxChoices: poll.MaxChoices}
+		c.Poll = &pollView{Options: cappedValues(poll.Options, maxPollOptions), MaxChoices: poll.MaxChoices}
 	}
 	if place := details.Location; place != nil {
-		c.Location = &locationView{Latitude: place.Latitude, Longitude: place.Longitude, Address: short(place.Address), URL: short(place.URL), Live: place.Live}
+		c.Location = &locationView{Latitude: place.Latitude, Longitude: place.Longitude, Address: capped(place.Address), URL: capped(place.URL), Live: place.Live}
 	}
 	for _, card := range details.Contacts[:min(len(details.Contacts), maxContactCards)] {
-		phones := shortAll(whatsapp.VCardPhones(card.VCard, maxPhonesPerCard), maxPhonesPerCard)
-		c.Contacts = append(c.Contacts, contactCardView{Name: short(card.Name), Phones: phones})
+		phones := cappedValues(whatsapp.VCardPhones(card.VCard, maxPhonesPerCard), maxPhonesPerCard)
+		c.Contacts = append(c.Contacts, contactCardView{Name: capped(card.Name), Phones: phones})
 	}
 }
 
-func shortAll(values []string, limit int) []string {
-	out := make([]string, 0, min(len(values), limit))
-	for _, value := range values[:min(len(values), limit)] {
-		out = append(out, short(value))
+func cappedValues(values []string, count int) []string {
+	out := make([]string, 0, min(len(values), count))
+	for _, value := range values[:min(len(values), count)] {
+		out = append(out, capped(value))
 	}
 	return out
 }
 
-func short(value string) string {
-	cutValue, _ := cut(value, maxNameRunes)
-	return cutValue
+func capped(value string) string {
+	first, _ := firstRunes(value, maxNameRunes)
+	return first
 }
 
-func cut(text string, limit int) (string, bool) {
+func firstRunes(text string, limit int) (string, bool) {
 	runes := []rune(text)
 	if len(runes) <= limit {
 		return text, false
