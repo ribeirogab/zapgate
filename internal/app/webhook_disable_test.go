@@ -63,6 +63,7 @@ func TestADisabledWebhookDropsItsEventsAndEnableLetsNewEventsReachIt(t *testing.
 	if id := got[1].Header.Get("Webhook-Id"); id != "dlv_2" || deliveryWithID(t, got, id).ids() != "3EB0A3" {
 		t.Fatalf("the second delivery is %s with %s, want dlv_2 with 3EB0A3", id, deliveryWithID(t, got, id).ids())
 	}
+	awaitAttempts(t, h, 2)
 	requireColumns(t, h, "support-bot", map[string]string{"STATE": "enabled", "PENDING": "0", "FAILED": "1"})
 }
 
