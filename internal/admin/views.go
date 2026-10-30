@@ -105,6 +105,7 @@ type AddWebhookRequest struct {
 	URL                 string   `json:"url"`
 	Accounts            []string `json:"accounts"`
 	AllExistingAccounts bool     `json:"all_existing_accounts"`
+	Content             string   `json:"content,omitempty"`
 }
 
 type WebhookView struct {

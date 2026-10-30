@@ -20,27 +20,31 @@ type receivedData struct {
 	AccountPhone string        `json:"account_phone"`
 	Chat         chatRef       `json:"chat"`
 	Messages     []messageView `json:"messages"`
+	Truncated    bool          `json:"truncated,omitempty"`
 	Fetch        fetchCall     `json:"fetch"`
 }
 
 type chatRef struct {
 	JID   string `json:"jid"`
 	Kind  string `json:"kind"`
+	Name  string `json:"name,omitempty"`
 	Phone string `json:"phone,omitempty"`
 }
 
 type personRef struct {
 	JID   string `json:"jid"`
 	Phone string `json:"phone,omitempty"`
+	Name  string `json:"name,omitempty"`
 }
 
 type messageView struct {
-	ID     string     `json:"id"`
-	Kind   string     `json:"kind"`
-	FromMe bool       `json:"from_me"`
-	SentAt string     `json:"sent_at"`
-	Sender personRef  `json:"sender"`
-	Media  *mediaView `json:"media,omitempty"`
+	ID         string             `json:"id"`
+	Kind       string             `json:"kind"`
+	FromMe     bool               `json:"from_me"`
+	SentAt     string             `json:"sent_at"`
+	Sender     personRef          `json:"sender"`
+	Media      *mediaView         `json:"media,omitempty"`
+	ThirdParty *thirdPartyContent `json:"third_party,omitempty"`
 }
 
 type mediaView struct {
@@ -74,13 +78,17 @@ func (d *Dispatcher) receivedData(ctx context.Context, a attempt) (receivedData,
 	if err != nil {
 		return receivedData{}, err
 	}
-	return receivedData{
+	data := receivedData{
 		Account:      a.account.Name,
 		AccountPhone: a.account.Phone,
 		Chat:         chatRefOf(chat),
 		Messages:     minimalMessages(messages),
 		Fetch:        fetchCall{Tool: fetchTool, Arguments: fetchArguments{Account: a.account.Name, Chat: chat.JID, After: after}},
-	}, nil
+	}
+	if a.webhook.Content == ContentFull {
+		data.addThirdParty(chat, messages)
+	}
+	return data, nil
 }
 
 func (d *Dispatcher) deliveryMessages(ctx context.Context, delivery store.Delivery) ([]store.Message, error) {
@@ -154,4 +162,12 @@ func phoneOf(jid string) string {
 		return ""
 	}
 	return whatsapp.Phone(parsed)
+}
+
+func receivedBody(a attempt, data receivedData) (Body, error) {
+	body := newBody(EventMessageReceived, a.at, data)
+	if a.webhook.Content == ContentFull {
+		body.Notice = thirdPartyNotice
+	}
+	return withinCap(body, data)
 }
