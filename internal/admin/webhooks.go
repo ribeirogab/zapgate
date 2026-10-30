@@ -129,5 +129,17 @@ func webhookView(r webhooks.Registered) WebhookView {
 		Format:    r.Format,
 		State:     webhooks.State(r.Webhook),
 		CreatedAt: r.CreatedAt.UTC().Format(time.RFC3339),
+
+		Pending:     r.Deliveries.Pending,
+		Failed:      r.Deliveries.Failed,
+		LastSuccess: optionalTime(r.Deliveries.LastSuccess),
+		LastError:   deliveryError(r.Deliveries.LastFailure),
 	}
+}
+
+func deliveryError(failure store.AttemptFailure) *DeliveryError {
+	if !failure.Known() {
+		return nil
+	}
+	return &DeliveryError{Status: failure.Status, Error: failure.Error}
 }

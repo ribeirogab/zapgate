@@ -42,6 +42,7 @@ type Harness struct {
 	WhatsApp    *fake.World
 	Clock       *clock.Manual
 	Hosts       *Hosts
+	Random      *Random
 
 	cfg         config.Config
 	listenerURL bool
@@ -96,6 +97,7 @@ func Start(t testing.TB, opts ...Option) *Harness {
 		WhatsApp:    fake.New(),
 		Clock:       clock.NewManual(StartTime),
 		Hosts:       newHosts(),
+		Random:      newRandom(),
 		audit:       &lockedBuffer{},
 		address:     "127.0.0.1:0",
 		listenerURL: o.listenerIsURL,
@@ -173,6 +175,7 @@ func (h *Harness) start(t testing.TB) {
 		Log:          slog.New(slog.NewJSONHandler(io.Discard, nil)),
 		Transcoder:   h.transcoder,
 		Resolver:     h.Hosts,
+		Random:       h.Random.Float64,
 	})
 	if err != nil {
 		cancel()

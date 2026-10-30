@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/ribeirogab/zapgate/internal/admin"
@@ -126,9 +127,20 @@ func webhooksList(ctx context.Context, args []string, std IO) error {
 	}
 	rows := make([][]string, 0, len(list))
 	for _, w := range list {
-		rows = append(rows, []string{w.Name, w.URL, listOrDash(w.Accounts), w.Content, w.State})
+		rows = append(rows, []string{w.Name, w.URL, listOrDash(w.Accounts), w.Content, w.State,
+			orDash(w.LastSuccess), strconv.Itoa(w.Pending), strconv.Itoa(w.Failed), deliveryErrorLabel(w.LastError)})
 	}
-	return writeTable(std.Stdout, []string{"NAME", "URL", "ACCOUNTS", "CONTENT", "STATE"}, rows)
+	return writeTable(std.Stdout, []string{"NAME", "URL", "ACCOUNTS", "CONTENT", "STATE", "LAST SUCCESS", "PENDING", "FAILED", "LAST ERROR"}, rows)
+}
+
+func deliveryErrorLabel(e *admin.DeliveryError) string {
+	switch {
+	case e == nil:
+		return noValue
+	case e.Error != "":
+		return e.Error
+	}
+	return statusLine(e.Status)
 }
 
 func webhooksRemove(ctx context.Context, args []string, std IO) error {
