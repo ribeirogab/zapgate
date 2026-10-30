@@ -7,6 +7,7 @@ import (
 
 	"github.com/ribeirogab/zapgate/internal/clock"
 	"github.com/ribeirogab/zapgate/internal/store"
+	"github.com/ribeirogab/zapgate/internal/whatsapp"
 )
 
 const (
@@ -14,11 +15,16 @@ const (
 	testIDBytes  = 12
 )
 
+type Clients interface {
+	Client(accountID int64) (whatsapp.Client, bool)
+}
+
 type RegistryDeps struct {
 	Store    *store.Store
 	Clock    clock.Clock
 	Sender   *Sender
 	Resolver Resolver
+	Clients  Clients
 	Wake     func()
 }
 
@@ -31,34 +37,33 @@ func NewRegistry(deps RegistryDeps) *Registry {
 }
 
 type Registration struct {
-	Name                string
-	URL                 string
-	AllExistingAccounts bool
-	Accounts            []string
-	Content             string
+	Name string
+	Options
 }
 
 type Registered struct {
 	store.Webhook
-	Accounts   []string
-	Deliveries store.DeliverySummary
+	Accounts    []string
+	ListedChats []string
+	Deliveries  store.DeliverySummary
 }
 
-func (r Registration) validate(ctx context.Context, resolver Resolver) error {
+func (r Registration) validate(ctx context.Context, resolver Resolver) (config, error) {
 	if err := validateName(r.Name); err != nil {
-		return err
+		return config{}, err
 	}
-	if err := validateURL(ctx, resolver, r.URL); err != nil {
-		return err
+	if r.URL == "" {
+		return config{}, invalid("the webhook needs a URL")
 	}
-	if err := validateContent(r.Content); err != nil {
-		return err
+	if err := validateAccountChoice(r.AllExistingAccounts, r.Accounts); err != nil {
+		return config{}, err
 	}
-	return validateAccountChoice(r.AllExistingAccounts, r.Accounts)
+	return r.apply(ctx, resolver, defaultConfig(r.Name))
 }
 
 func (r *Registry) Add(ctx context.Context, reg Registration) (Registered, string, error) {
-	if err := reg.validate(ctx, r.deps.Resolver); err != nil {
+	c, err := reg.validate(ctx, r.deps.Resolver)
+	if err != nil {
 		return Registered{}, "", err
 	}
 	secret, err := NewSecret()
@@ -66,17 +71,19 @@ func (r *Registry) Add(ctx context.Context, reg Registration) (Registered, strin
 		return Registered{}, "", err
 	}
 	webhook, err := r.deps.Store.CreateWebhook(ctx, store.NewWebhook{
-		Name:                reg.Name,
-		URL:                 reg.URL,
-		Format:              FormatStandard,
-		Content:             contentOrDefault(reg.Content),
-		Events:              defaultEvents,
-		Chats:               ChatsAll,
-		Quiet:               DefaultQuiet,
-		MaxWait:             DefaultMaxWait,
+		Name:                c.webhook.Name,
+		URL:                 c.webhook.URL,
+		Format:              c.webhook.Format,
+		Content:             c.webhook.Content,
+		Events:              c.webhook.Events,
+		Chats:               c.webhook.Chats,
+		Quiet:               c.webhook.Quiet,
+		MaxWait:             c.webhook.MaxWait,
+		Headers:             c.webhook.Headers,
 		Secret:              secret,
 		AllExistingAccounts: reg.AllExistingAccounts,
 		AccountNames:        reg.Accounts,
+		ListedChats:         r.listedChats(ctx, c),
 		CreatedAt:           r.deps.Clock.Now(),
 	})
 	if err != nil {
@@ -136,8 +143,12 @@ func (r *Registry) registered(ctx context.Context, webhook store.Webhook) (Regis
 	for _, account := range accounts {
 		names = append(names, account.Name)
 	}
+	chats, err := r.listedChatJIDs(ctx, webhook)
+	if err != nil {
+		return Registered{}, err
+	}
 	deliveries, err := r.deps.Store.SummarizeDeliveries(ctx, webhook.ID)
-	return Registered{Webhook: webhook, Accounts: names, Deliveries: deliveries}, err
+	return Registered{Webhook: webhook, Accounts: names, ListedChats: chats, Deliveries: deliveries}, err
 }
 
 func newTestID() string {

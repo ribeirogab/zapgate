@@ -45,7 +45,7 @@ CREATE INDEX events_account ON events (account_id, seq);
 CREATE INDEX events_created ON events (created_at);
 
 CREATE TABLE webhook_deliveries (
-  id INTEGER PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   webhook_id INTEGER NOT NULL REFERENCES webhooks (id) ON DELETE CASCADE,
   account_id INTEGER NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
   chat_jid TEXT,

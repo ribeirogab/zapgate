@@ -12,6 +12,8 @@ import (
 
 const (
 	urlFlag          = "--url"
+	chatsFlag        = "--chats"
+	eventsFlag       = "--events"
 	contentFlag      = "--content"
 	sinceFlag        = "--since"
 	noWebhookMessage = "no webhook yet"
@@ -21,6 +23,7 @@ func webhooks(ctx context.Context, args []string, std IO) error {
 	cmd, rest, err := subcommand(args, map[string]command{
 		"add":           webhooksAdd,
 		"list":          webhooksList,
+		"set":           webhooksSet,
 		"enable":        webhooksEnable,
 		"remove":        webhooksRemove,
 		"test":          webhooksTest,
@@ -37,11 +40,33 @@ type webhookOptions struct {
 	name     string
 	url      string
 	accounts string
+	chats    string
+	events   string
+	content  string
+}
+
+func (o *webhookOptions) flags() map[string]*string {
+	return map[string]*string{
+		urlFlag:      &o.url,
+		accountsFlag: &o.accounts,
+		chatsFlag:    &o.chats,
+		eventsFlag:   &o.events,
+		contentFlag:  &o.content,
+	}
+}
+
+func (o webhookOptions) given() bool {
+	for _, value := range o.flags() {
+		if *value != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func parseWebhookOptions(args []string) (webhookOptions, error) {
 	var opts webhookOptions
-	name, err := parseNamedArgs(args, map[string]*string{urlFlag: &opts.url, accountsFlag: &opts.accounts})
+	name, err := parseNamedArgs(args, opts.flags())
 	opts.name = name
 	return opts, err
 }
@@ -68,40 +93,33 @@ func parseNamedArgs(args []string, values map[string]*string) (string, error) {
 	return name, nil
 }
 
-func (o webhookOptions) request() admin.AddWebhookRequest {
-	all, names := accountChoice(o.accounts)
-	return admin.AddWebhookRequest{Name: o.name, URL: o.url, AllExistingAccounts: all, Accounts: names}
+func (o webhookOptions) options() admin.WebhookOptions {
+	options := admin.WebhookOptions{URL: o.url, Chats: o.chats, Events: commaList(o.events), Content: o.content}
+	if o.accounts != "" {
+		options.AllExistingAccounts, options.Accounts = accountChoice(o.accounts)
+	}
+	return options
 }
 
-func takeContent(args []string) (string, []string, error) {
-	var content string
-	rest := make([]string, 0, len(args))
-	for i := 0; i < len(args); i++ {
-		if strings.SplitN(args[i], "=", 2)[0] != contentFlag {
-			rest = append(rest, args[i])
-			continue
-		}
-		value, next, err := flagValue(args, i)
-		if err != nil {
-			return "", nil, err
-		}
-		content, i = value, next
+func commaList(value string) []string {
+	if value == "" {
+		return nil
 	}
-	return content, rest, nil
+	items := []string{}
+	for _, item := range strings.Split(value, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			items = append(items, item)
+		}
+	}
+	return items
 }
 
 func webhooksAdd(ctx context.Context, args []string, std IO) error {
-	content, args, err := takeContent(args)
-	if err != nil {
-		return err
-	}
 	opts, err := parseWebhookOptions(args)
 	if err != nil || opts.url == "" || opts.accounts == "" {
 		return errUsage
 	}
-	req := opts.request()
-	req.Content = content
-	created, err := ownerClient(std).AddWebhook(ctx, req)
+	created, err := ownerClient(std).AddWebhook(ctx, admin.AddWebhookRequest{Name: opts.name, WebhookOptions: opts.options()})
 	if err != nil {
 		return err
 	}
@@ -109,6 +127,26 @@ func webhooksAdd(ctx context.Context, args []string, std IO) error {
 	fmt.Fprintf(std.Stdout, "created the webhook %s (accounts: %s, events: %s, content: %s)\n", w.Name, listOrNone(w.Accounts), strings.Join(w.Events, ","), w.Content)
 	printSecretOnce(std, created.Secret)
 	return nil
+}
+
+func webhooksSet(ctx context.Context, args []string, std IO) error {
+	opts, err := parseWebhookOptions(args)
+	if err != nil || !opts.given() {
+		return errUsage
+	}
+	w, err := ownerClient(std).SetWebhook(ctx, opts.name, opts.options())
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(std.Stdout, "changed the webhook %s (accounts: %s, chats: %s, events: %s, content: %s)\n", w.Name, listOrNone(w.Accounts), chatsLabel(w), strings.Join(w.Events, ","), w.Content)
+	return nil
+}
+
+func chatsLabel(w admin.WebhookView) string {
+	if len(w.ListedChats) > 0 {
+		return strings.Join(w.ListedChats, ",")
+	}
+	return w.Chats
 }
 
 func printSecretOnce(std IO, secret string) {
@@ -128,12 +166,38 @@ func webhooksList(ctx context.Context, args []string, std IO) error {
 		fmt.Fprintln(std.Stdout, noWebhookMessage)
 		return nil
 	}
+	header := make([]string, 0, len(webhookColumns))
+	for _, column := range webhookColumns {
+		header = append(header, column.header)
+	}
 	rows := make([][]string, 0, len(list))
 	for _, w := range list {
-		rows = append(rows, []string{w.Name, w.URL, listOrDash(w.Accounts), w.Content, w.State,
-			orDash(w.LastSuccess), strconv.Itoa(w.Pending), strconv.Itoa(w.Failed), deliveryErrorLabel(w.LastError)})
+		row := make([]string, 0, len(webhookColumns))
+		for _, column := range webhookColumns {
+			row = append(row, column.value(w))
+		}
+		rows = append(rows, row)
 	}
-	return writeTable(std.Stdout, []string{"NAME", "URL", "ACCOUNTS", "CONTENT", "STATE", "LAST SUCCESS", "PENDING", "FAILED", "LAST ERROR"}, rows)
+	return writeTable(std.Stdout, header, rows)
+}
+
+type webhookColumn struct {
+	header string
+	value  func(admin.WebhookView) string
+}
+
+var webhookColumns = []webhookColumn{
+	{header: "NAME", value: func(w admin.WebhookView) string { return w.Name }},
+	{header: "URL", value: func(w admin.WebhookView) string { return w.URL }},
+	{header: "ACCOUNTS", value: func(w admin.WebhookView) string { return listOrDash(w.Accounts) }},
+	{header: "CHATS", value: chatsLabel},
+	{header: "EVENTS", value: func(w admin.WebhookView) string { return strings.Join(w.Events, ",") }},
+	{header: "CONTENT", value: func(w admin.WebhookView) string { return w.Content }},
+	{header: "STATE", value: func(w admin.WebhookView) string { return w.State }},
+	{header: "LAST SUCCESS", value: func(w admin.WebhookView) string { return orDash(w.LastSuccess) }},
+	{header: "PENDING", value: func(w admin.WebhookView) string { return strconv.Itoa(w.Pending) }},
+	{header: "FAILED", value: func(w admin.WebhookView) string { return strconv.Itoa(w.Failed) }},
+	{header: "LAST ERROR", value: func(w admin.WebhookView) string { return deliveryErrorLabel(w.LastError) }},
 }
 
 func deliveryErrorLabel(e *admin.DeliveryError) string {

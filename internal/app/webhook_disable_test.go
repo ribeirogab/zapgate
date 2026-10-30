@@ -2,8 +2,6 @@ package app_test
 
 import (
 	"net/http"
-	"regexp"
-	"strings"
 	"testing"
 	"time"
 
@@ -12,34 +10,9 @@ import (
 	"github.com/ribeirogab/zapgate/internal/apptest"
 )
 
-var columnGap = regexp.MustCompile(`\s{2,}`)
-
-func listedRow(t *testing.T, h *apptest.Harness, name string) map[string]string {
-	t.Helper()
-	listed := h.CLI(t, "webhooks", "list")
-	if listed.Code != 0 {
-		t.Fatalf("webhooks list: exit %d, stderr %q", listed.Code, listed.Stderr)
-	}
-	lines := strings.Split(strings.TrimSpace(listed.Stdout), "\n")
-	header := columnGap.Split(lines[0], -1)
-	for _, line := range lines[1:] {
-		cells := columnGap.Split(line, -1)
-		if cells[0] != name {
-			continue
-		}
-		row := map[string]string{}
-		for i, column := range header {
-			row[column] = cells[i]
-		}
-		return row
-	}
-	t.Fatalf("webhooks list has no webhook %s: %q", name, listed.Stdout)
-	return nil
-}
-
 func requireColumns(t *testing.T, h *apptest.Harness, name string, want map[string]string) {
 	t.Helper()
-	row := listedRow(t, h, name)
+	row := listedWebhook(t, h, name)
 	for column, value := range want {
 		if row[column] != value {
 			t.Fatalf("webhooks list shows %s %q for %s, want %q: %v", column, row[column], name, value, row)

@@ -44,7 +44,13 @@ type NewWebhook struct {
 	Headers             map[string]string
 	AllExistingAccounts bool
 	AccountNames        []string
+	ListedChats         func(accountID int64) []string
 	CreatedAt           time.Time
+}
+
+type WebhookChat struct {
+	AccountID int64
+	ChatJID   string
 }
 
 const (
@@ -80,6 +86,9 @@ func createWebhook(ctx context.Context, tx *sql.Tx, n NewWebhook) (Webhook, erro
 		return Webhook{}, err
 	}
 	if err := linkWebhookAccounts(ctx, tx, id, accountIDs); err != nil {
+		return Webhook{}, err
+	}
+	if err := linkWebhookChats(ctx, tx, id, accountIDs, n.ListedChats); err != nil {
 		return Webhook{}, err
 	}
 	return webhookWhere(ctx, tx, `w.id = ?`, id)
@@ -126,6 +135,20 @@ func linkWebhookAccounts(ctx context.Context, tx *sql.Tx, webhookID int64, accou
 	return nil
 }
 
+func linkWebhookChats(ctx context.Context, tx *sql.Tx, webhookID int64, accountIDs []int64, listed func(accountID int64) []string) error {
+	if listed == nil {
+		return nil
+	}
+	for _, accountID := range accountIDs {
+		for _, chat := range listed(accountID) {
+			if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO webhook_chats (webhook_id, account_id, chat_jid) VALUES (?, ?, ?)`, webhookID, accountID, chat); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (s *Store) WebhookByName(ctx context.Context, name string) (Webhook, error) {
 	return webhookWhere(ctx, s.db, `w.name = ?`, name)
 }
@@ -153,6 +176,90 @@ func (s *Store) ListWebhooks(ctx context.Context) ([]Webhook, error) {
 
 func (s *Store) WebhookAccounts(ctx context.Context, w Webhook) ([]Account, error) {
 	return queryAccounts(ctx, s.db, `SELECT `+accountColumns+` FROM accounts a JOIN webhook_accounts wa ON wa.account_id = a.id WHERE wa.webhook_id = ? ORDER BY a.name`, w.ID)
+}
+
+type WebhookChange struct {
+	Webhook             Webhook
+	ChangeAccounts      bool
+	AllExistingAccounts bool
+	AccountNames        []string
+	ListedChats         func(accountID int64) []string
+}
+
+func (s *Store) ChangeWebhook(ctx context.Context, c WebhookChange) (Webhook, error) {
+	var webhook Webhook
+	err := s.inTx(ctx, func(tx *sql.Tx) error {
+		if err := updateWebhook(ctx, tx, c.Webhook); err != nil {
+			return err
+		}
+		if c.ChangeAccounts {
+			if err := replaceWebhookAccounts(ctx, tx, c); err != nil {
+				return err
+			}
+		}
+		if err := replaceWebhookChats(ctx, tx, c.Webhook.ID, c.ListedChats); err != nil {
+			return err
+		}
+		var err error
+		webhook, err = webhookWhere(ctx, tx, `w.id = ?`, c.Webhook.ID)
+		return err
+	})
+	return webhook, err
+}
+
+func updateWebhook(ctx context.Context, tx *sql.Tx, w Webhook) error {
+	headers, err := encodeHeaders(w.Headers)
+	if err != nil {
+		return err
+	}
+	result, err := tx.ExecContext(ctx, `UPDATE webhooks SET url = ?, format = ?, content = ?, events = ?, chats = ?, quiet_ms = ?, max_wait_ms = ?, headers = ? WHERE id = ?`,
+		w.URL, w.Format, w.Content, strings.Join(w.Events, eventsSeparator), w.Chats, w.Quiet.Milliseconds(), w.MaxWait.Milliseconds(), headers, w.ID)
+	if err != nil {
+		return err
+	}
+	if changed, err := result.RowsAffected(); err != nil || changed == 0 {
+		return errors.Join(ErrNotFound, err)
+	}
+	return nil
+}
+
+func replaceWebhookAccounts(ctx context.Context, tx *sql.Tx, c WebhookChange) error {
+	accountIDs, err := chosenAccountIDs(ctx, tx, c.AllExistingAccounts, c.AccountNames)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM webhook_accounts WHERE webhook_id = ?`, c.Webhook.ID); err != nil {
+		return err
+	}
+	return linkWebhookAccounts(ctx, tx, c.Webhook.ID, accountIDs)
+}
+
+func replaceWebhookChats(ctx context.Context, tx *sql.Tx, webhookID int64, listed func(accountID int64) []string) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM webhook_chats WHERE webhook_id = ?`, webhookID); err != nil {
+		return err
+	}
+	accountIDs, err := queryIDs(ctx, tx, `SELECT account_id FROM webhook_accounts WHERE webhook_id = ?`, webhookID)
+	if err != nil {
+		return err
+	}
+	return linkWebhookChats(ctx, tx, webhookID, accountIDs, listed)
+}
+
+func (s *Store) WebhookChats(ctx context.Context, w Webhook) ([]WebhookChat, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT account_id, chat_jid FROM webhook_chats WHERE webhook_id = ? ORDER BY chat_jid, account_id`, w.ID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var chats []WebhookChat
+	for rows.Next() {
+		var chat WebhookChat
+		if err := rows.Scan(&chat.AccountID, &chat.ChatJID); err != nil {
+			return nil, err
+		}
+		chats = append(chats, chat)
+	}
+	return chats, rows.Err()
 }
 
 func (s *Store) DeleteWebhook(ctx context.Context, name string) (Webhook, error) {

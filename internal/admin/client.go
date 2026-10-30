@@ -158,6 +158,12 @@ func (c *Client) Webhooks(ctx context.Context) ([]WebhookView, error) {
 	return out.Webhooks, err
 }
 
+func (c *Client) SetWebhook(ctx context.Context, name string, req WebhookOptions) (WebhookView, error) {
+	var out webhookResponse
+	err := c.call(ctx, http.MethodPatch, "/webhooks/"+url.PathEscape(name), req, &out)
+	return out.Webhook, err
+}
+
 func (c *Client) RemoveWebhook(ctx context.Context, name string) (RemovedWebhook, error) {
 	var out RemovedWebhook
 	err := c.call(ctx, http.MethodDelete, "/webhooks/"+url.PathEscape(name), nil, &out)

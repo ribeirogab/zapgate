@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -172,27 +173,9 @@ func fitsBudget(value any) bool {
 }
 
 func parseChat(ctx context.Context, directory whatsapp.Directory, value string) (types.JID, error) {
-	value = strings.TrimSpace(value)
-	if strings.Contains(value, "@") {
-		return parseChatJID(ctx, directory, value)
+	jid, err := whatsapp.ParseChat(ctx, directory, value)
+	if errors.Is(err, whatsapp.ErrNotPhoneOrJID) {
+		return types.JID{}, fmt.Errorf("the chat %q is not valid: pass a JID from list_chats or a phone number with the country code, for example +5511988887777", strings.TrimSpace(value))
 	}
-	digits, ok := onlyPhoneDigits(value)
-	if !ok || !whatsapp.ValidPhoneDigits(digits) {
-		return types.JID{}, fmt.Errorf("the chat %q is not valid: pass a JID from list_chats or a phone number with the country code, for example +5511988887777", value)
-	}
-	return types.NewJID(digits, types.DefaultUserServer), nil
-}
-
-func parseChatJID(ctx context.Context, directory whatsapp.Directory, value string) (types.JID, error) {
-	jid, err := types.ParseJID(value)
-	if err != nil {
-		return types.JID{}, fmt.Errorf("the chat %q is not a valid JID: %v", value, err)
-	}
-	switch jid.Server {
-	case types.DefaultUserServer, types.GroupServer:
-		return jid.ToNonAD(), nil
-	case types.HiddenUserServer:
-		return whatsapp.ResolvePhone(ctx, directory, jid, types.JID{}), nil
-	}
-	return types.JID{}, fmt.Errorf("the chat %q is not a person or a group", value)
+	return jid, err
 }
