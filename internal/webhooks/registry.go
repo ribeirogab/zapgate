@@ -34,6 +34,8 @@ type Registration struct {
 	URL                 string
 	AllExistingAccounts bool
 	Accounts            []string
+	Quiet               string
+	MaxWait             string
 }
 
 type Registered struct {
@@ -55,6 +57,10 @@ func (r *Registry) Add(ctx context.Context, reg Registration) (Registered, strin
 	if err := reg.validate(ctx, r.deps.Resolver); err != nil {
 		return Registered{}, "", err
 	}
+	timing, err := defaultTiming.with(reg.Quiet, reg.MaxWait)
+	if err != nil {
+		return Registered{}, "", err
+	}
 	secret, err := NewSecret()
 	if err != nil {
 		return Registered{}, "", err
@@ -66,8 +72,8 @@ func (r *Registry) Add(ctx context.Context, reg Registration) (Registered, strin
 		Content:             ContentMinimal,
 		Events:              defaultEvents,
 		Chats:               ChatsAll,
-		Quiet:               DefaultQuiet,
-		MaxWait:             DefaultMaxWait,
+		Quiet:               timing.quiet,
+		MaxWait:             timing.maxWait,
 		Secret:              secret,
 		AllExistingAccounts: reg.AllExistingAccounts,
 		AccountNames:        reg.Accounts,

@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/http"
 	"strings"
 
@@ -11,6 +12,8 @@ import (
 
 const (
 	urlFlag          = "--url"
+	quietFlag        = "--quiet"
+	maxWaitFlag      = "--max-wait"
 	noWebhookMessage = "no webhook yet"
 )
 
@@ -32,13 +35,25 @@ type webhookOptions struct {
 	name     string
 	url      string
 	accounts string
+	timing   timingOptions
+}
+
+type timingOptions struct {
+	quiet   string
+	maxWait string
 }
 
 func parseWebhookOptions(args []string) (webhookOptions, error) {
 	var opts webhookOptions
-	name, err := parseNamedArgs(args, map[string]*string{urlFlag: &opts.url, accountsFlag: &opts.accounts})
+	flags := map[string]*string{urlFlag: &opts.url, accountsFlag: &opts.accounts}
+	maps.Copy(flags, opts.timing.flags())
+	name, err := parseNamedArgs(args, flags)
 	opts.name = name
 	return opts, err
+}
+
+func (o *timingOptions) flags() map[string]*string {
+	return map[string]*string{quietFlag: &o.quiet, maxWaitFlag: &o.maxWait}
 }
 
 func parseNamedArgs(args []string, values map[string]*string) (string, error) {
@@ -65,7 +80,14 @@ func parseNamedArgs(args []string, values map[string]*string) (string, error) {
 
 func (o webhookOptions) request() admin.AddWebhookRequest {
 	all, names := accountChoice(o.accounts)
-	return admin.AddWebhookRequest{Name: o.name, URL: o.url, AllExistingAccounts: all, Accounts: names}
+	return admin.AddWebhookRequest{
+		Name:                o.name,
+		URL:                 o.url,
+		AllExistingAccounts: all,
+		Accounts:            names,
+		Quiet:               o.timing.quiet,
+		MaxWait:             o.timing.maxWait,
+	}
 }
 
 func webhooksAdd(ctx context.Context, args []string, std IO) error {
