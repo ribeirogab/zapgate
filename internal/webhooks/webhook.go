@@ -90,6 +90,21 @@ func validateURL(ctx context.Context, resolver Resolver, raw string) error {
 	return nil
 }
 
+func validateContent(content string) error {
+	switch content {
+	case "", ContentMinimal, ContentFull:
+		return nil
+	}
+	return invalid("the content level %q is not valid: use %s or %s", content, ContentMinimal, ContentFull)
+}
+
+func contentOrDefault(content string) string {
+	if content == "" {
+		return ContentMinimal
+	}
+	return content
+}
+
 func validateAccountChoice(allExisting bool, accounts []string) error {
 	if allExisting && len(accounts) > 0 {
 		return invalid("choose all existing accounts or a list of accounts, not both")
