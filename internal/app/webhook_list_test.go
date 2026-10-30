@@ -12,7 +12,7 @@ import (
 	"github.com/ribeirogab/zapgate/internal/apptest"
 )
 
-const webhookListHeader = "NAME URL ACCOUNTS STATE LAST SUCCESS PENDING FAILED LAST ERROR"
+const webhookListHeader = "NAME URL ACCOUNTS CONTENT STATE LAST SUCCESS PENDING FAILED LAST ERROR"
 
 func webhookRows(t *testing.T, h *apptest.Harness) []string {
 	t.Helper()
@@ -44,7 +44,7 @@ func TestWebhooksListShowsThePendingAndFailedDeliveriesAndTheLastSuccess(t *test
 	awaitAttempts(t, h, 3)
 
 	rows := webhookRows(t, h)
-	want := "support-bot " + rx.URL + " work enabled 2026-10-13T12:01:00Z 1 1 400 Bad Request"
+	want := "support-bot " + rx.URL + " work minimal enabled 2026-10-13T12:01:00Z 1 1 400 Bad Request"
 	if len(rows) != 2 || rows[1] != want {
 		t.Fatalf("webhooks list %q, want %q", rows, want)
 	}
@@ -74,7 +74,7 @@ func TestAConnectionFailureIsRetriedAndShownInTheList(t *testing.T) {
 	if lines[0]["status"] != float64(0) {
 		t.Fatalf("attempt line %v, want no status", lines[0])
 	}
-	if !strings.HasPrefix(rows[1], "support-bot "+downURL+" work enabled - 1 0 ") || !strings.Contains(rows[1], "connection refused") {
+	if !strings.HasPrefix(rows[1], "support-bot "+downURL+" work minimal enabled - 1 0 ") || !strings.Contains(rows[1], "connection refused") {
 		t.Fatalf("webhooks list %q, want 1 pending delivery and the connection error", rows)
 	}
 }
@@ -96,7 +96,7 @@ func TestABlockedAttemptIsAuditedAndShownInTheList(t *testing.T) {
 	h.Clock.Advance(5 * time.Second)
 	got := rx.Await(t, 1)
 
-	want := "support-bot " + webhookURL + " work enabled - 1 0 bot (203.0.113.10) is not a loopback, private or CGNAT address, so the URL must use https"
+	want := "support-bot " + webhookURL + " work minimal enabled - 1 0 bot (203.0.113.10) is not a loopback, private or CGNAT address, so the URL must use https"
 	if rows[1] != want {
 		t.Fatalf("webhooks list %q, want %q", rows, want)
 	}

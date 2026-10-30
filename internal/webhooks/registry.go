@@ -34,6 +34,7 @@ type Registration struct {
 	URL                 string
 	AllExistingAccounts bool
 	Accounts            []string
+	Content             string
 }
 
 type Registered struct {
@@ -47,6 +48,9 @@ func (r Registration) validate(ctx context.Context, resolver Resolver) error {
 		return err
 	}
 	if err := validateURL(ctx, resolver, r.URL); err != nil {
+		return err
+	}
+	if err := validateContent(r.Content); err != nil {
 		return err
 	}
 	return validateAccountChoice(r.AllExistingAccounts, r.Accounts)
@@ -64,7 +68,7 @@ func (r *Registry) Add(ctx context.Context, reg Registration) (Registered, strin
 		Name:                reg.Name,
 		URL:                 reg.URL,
 		Format:              FormatStandard,
-		Content:             ContentMinimal,
+		Content:             contentOrDefault(reg.Content),
 		Events:              defaultEvents,
 		Chats:               ChatsAll,
 		Quiet:               DefaultQuiet,

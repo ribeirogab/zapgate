@@ -43,6 +43,7 @@ func (h *handler) addWebhook(r *http.Request) (any, error) {
 		URL:                 req.URL,
 		AllExistingAccounts: req.AllExistingAccounts,
 		Accounts:            req.Accounts,
+		Content:             req.Content,
 	})
 	if err != nil {
 		return nil, webhookError(req.Name, err)

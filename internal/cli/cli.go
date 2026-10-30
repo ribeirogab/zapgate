@@ -26,7 +26,7 @@ const (
   zapgate access list
   zapgate access set <name> [--accounts <a,b|all>] [--approval elicitation|app]
   zapgate access revoke <name>
-  zapgate webhooks add <name> --url <url> --accounts <a,b|all>
+  zapgate webhooks add <name> --url <url> --accounts <a,b|all> [--content minimal|full]
   zapgate webhooks list
   zapgate webhooks remove <name>
   zapgate webhooks test <name>
