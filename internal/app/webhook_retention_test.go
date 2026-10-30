@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -24,11 +23,11 @@ func TestTheDailyPassDeletesTheEventsAndTheSettledDeliveriesOlderThanAWeek(t *te
 	addWebhook(t, h, rx, "support-bot", "work")
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("da semana passada")))
 	h.WhatsApp.Emit(workPhone, message(direct(joaoJID, "3EB0J1", "João", morning), text("também")))
-	awaitDeliveryAttempts(t, h, 2)
+	awaitAttempts(t, h, 2)
 	awaitRetentionPass(t, h, h.Clock.Now())
 	h.Clock.Advance(week)
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A2", "Maria", morning.Add(week)), text("de hoje")))
-	awaitDeliveryAttempts(t, h, 3)
+	awaitAttempts(t, h, 3)
 
 	runDailyRetention(t, h)
 
@@ -40,17 +39,40 @@ func TestTheDailyPassDeletesTheEventsAndTheSettledDeliveriesOlderThanAWeek(t *te
 	}
 }
 
-func TestTheEventsOfADeliveryThatIsNotSettledStay(t *testing.T) {
+func TestAPendingDeliveryKeepsItsEventsThroughAWeekOff(t *testing.T) {
+	h := apptest.Start(t)
+	h.AddAccount(t, "work", workPhone, "Alex")
+	rx := h.StartReceiver(t, apptest.Reply(http.StatusServiceUnavailable), apptest.Reply(http.StatusServiceUnavailable), apptest.Reply(http.StatusOK))
+	addWebhook(t, h, rx, "support-bot", "work")
+	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("oi, tudo bem?")))
+	awaitAttempts(t, h, 1)
+	awaitRetentionPass(t, h, h.Clock.Now())
+	h.Stop(t)
+	h.Clock.Advance(week + 24*time.Hour)
+
+	h.Resume(t)
+
+	awaitAttempts(t, h, 2)
+	awaitRetentionPass(t, h, h.Clock.Now())
+	if got := journal(t, h); got != "message.received 5531944443333@s.whatsapp.net 3EB0A1" {
+		t.Fatalf("the event journal has %q", got)
+	}
+	got := advanceToNextAttempt(t, h, rx, 30*time.Second)
+	if last := deliveryWithID(t, got[len(got)-1:], "dlv_1"); last.ids() != "3EB0A1" {
+		t.Fatalf("the last attempt of dlv_1 has %q, want 3EB0A1", last.ids())
+	}
+	requireResults(t, awaitAttempts(t, h, 3), "retrying", "retrying", "delivered")
+}
+
+func TestTheEventsOfADeliveryInFlightStay(t *testing.T) {
 	h := apptest.Start(t)
 	h.AddAccount(t, "work", workPhone, "Alex")
 	release := make(chan struct{})
 	rx := h.StartReceiver(t, apptest.Reply(http.StatusOK), apptest.Held(release, http.StatusOK))
-	var once sync.Once
-	open := func() { once.Do(func() { close(release) }) }
-	t.Cleanup(open)
+	t.Cleanup(releaseOnce(release))
 	addWebhook(t, h, rx, "support-bot", "work")
 	h.WhatsApp.Emit(workPhone, message(direct(joaoJID, "3EB0J1", "João", morning), text("entregue")))
-	awaitDeliveryAttempts(t, h, 1)
+	awaitAttempts(t, h, 1)
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("ainda no envio")))
 	rx.Await(t, 2)
 	awaitRetentionPass(t, h, h.Clock.Now())
@@ -64,7 +86,6 @@ func TestTheEventsOfADeliveryThatIsNotSettledStay(t *testing.T) {
 	if got := deliveries(t, h); got != "dlv_2 open" {
 		t.Fatalf("the deliveries are %q", got)
 	}
-	open()
 }
 
 func TestAnEventAfterTheCleanupGetsANewSequenceNumberAndANewDeliveryID(t *testing.T) {
@@ -73,7 +94,7 @@ func TestAnEventAfterTheCleanupGetsANewSequenceNumberAndANewDeliveryID(t *testin
 	rx := h.StartReceiver(t)
 	addWebhook(t, h, rx, "support-bot", "work")
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0A1", "Maria", morning), text("da semana passada")))
-	awaitDeliveryAttempts(t, h, 1)
+	awaitAttempts(t, h, 1)
 	awaitRetentionPass(t, h, h.Clock.Now())
 	h.Clock.Advance(week)
 	runDailyRetention(t, h)
@@ -139,17 +160,6 @@ func eventCount(t *testing.T, db *sql.DB) int {
 		t.Fatal(err)
 	}
 	return count
-}
-
-func awaitDeliveryAttempts(t *testing.T, h *apptest.Harness, n int) {
-	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for len(linesWithMessage(h.AuditLines(t), "webhook_delivery")) < n {
-		if time.Now().After(deadline) {
-			t.Fatalf("fewer than %d delivery attempts in the audit log: %s", n, h.AuditRaw())
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
 }
 
 func appDB(t *testing.T, h *apptest.Harness) *sql.DB {
