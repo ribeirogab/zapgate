@@ -50,6 +50,8 @@ When the phone still shows the device after `remove`, the command tells you. The
 | `disconnected` | The connection dropped. zapgate connects again by itself, also after a reboot |
 | `logged_out` | WhatsApp unlinked the device. The account needs a new pairing |
 
+A [webhook](webhooks.md) with the event `account.state` gets each change to `connected`, `disconnected` or `logged_out`.
+
 ## A logged-out account
 
 WhatsApp unlinks the device when the phone does not open WhatsApp for 14 days, or when someone removes the device on the phone. `zapgate status` and `list_accounts` show `logged_out`. To connect again, remove the account, pair it again with the same name and give it back to the accesses:
