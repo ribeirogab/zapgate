@@ -16,6 +16,7 @@ zapgate connects to WhatsApp as a linked device of each number, like WhatsApp We
 - **Many accounts, one server.** Pair a personal number, a work number, or as many as you need. Every tool call names its account, and no tool has a default account.
 - **Your approval on every write.** In clients with MCP elicitation (Claude Code, Codex, Cursor), every send, reaction, edit and delete opens a question with the exact account, chat and content. Nothing goes out until you accept.
 - **One access per client.** Each client gets its own access, with only the accounts you choose. Bots get a read-only access.
+- **Webhooks instead of polling.** A signed POST tells your bot, automation or Claude Code routine about new messages, once per burst. By default it carries no message text.
 - **Remote clients work too.** OAuth with dynamic client registration lets claude.ai, ChatGPT and Claude on mobile connect as a custom connector. Static bearer tokens serve bots and CLIs.
 - **Built against prompt injection.** Message text arrives in a `third_party` field, and the server tells the agent that this field is data, not instructions.
 - **Your history, on your disk.** Full-text search, media downloaded on arrival, retention per account, and a JSON audit log.
@@ -85,6 +86,7 @@ Every write needs your approval. See [Tools](docs/tools.md) for the inputs, the 
 - [Access and approval](docs/access.md): OAuth, static tokens, read-only access and approval modes
 - [Clients](docs/clients.md): Claude Code, Claude Desktop, claude.ai, ChatGPT, Codex, Cursor and bots
 - [Tools](docs/tools.md): tools, file uploads and limits
+- [Webhooks](docs/webhooks.md): signed deliveries to bots, automations and Claude Code routines
 - [Security](docs/security.md): the risks and how zapgate handles them
 - [Glossary](GLOSSARY.md) and [decisions](docs/adr/)
 

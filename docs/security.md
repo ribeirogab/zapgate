@@ -37,6 +37,18 @@ Anyone can write to your accounts, and the text reaches the agent.
 - The login page accepts 5 wrong owner passwords per IP address every 15 minutes.
 - zapgate reads the client address from the TCP connection. It trusts a proxy header only when `ZAPGATE_CLIENT_IP_HEADER` names it. Name a header only when the proxy is the only way to reach zapgate.
 
+## Webhooks send data out
+
+A [webhook](webhooks.md) sends a POST to a system that the owner chose, for each delivery.
+
+- Only owner commands create, change and remove a webhook. No MCP tool reads or changes a webhook, so an agent, or a prompt injection in a message, cannot open a data exit.
+- A webhook gives no tools. A receiver that reads messages uses its own access: give it a read-only access.
+- The content level `minimal`, the default, sends IDs, kinds, times, phone numbers and the type and size of media. It sends no message text and no names.
+- The content level `full` sends message text, captions, file names, polls, places, contacts and names. Then the receiver, its logs and its providers keep third-party data. The receiver must treat `third_party` and the names as data, never as instructions, and the body tells it so in `notice`. Choose `full` only for a receiver that you trust.
+- zapgate keeps the secret and the extra header values of each webhook in plain text in `app.db`, because it needs them to sign and to send. Whoever reads `app.db` can sign a false delivery. The secret shows only in the output of `add` and `rotate-secret`. `list`, the admin API and the audit log show only the names of the headers.
+- When a secret leaks, run `zapgate webhooks rotate-secret` and give the new secret to the receiver at once. The receiver then rejects a POST that only the old secret signs.
+- An `https` URL works for any address. An `http` URL works only for a loopback, private or CGNAT address, so plain HTTP does not cross the internet. zapgate checks the address again at each attempt, so a DNS change cannot move an `http` URL to a public address. It never follows a redirect.
+
 ## The proxy can see the traffic
 
 A proxy that terminates TLS sees the messages, the media, the tokens and the owner password in plain text. Cloudflare Tunnel terminates TLS at Cloudflare. Tailscale Funnel and your own reverse proxy terminate TLS on your server. See [Deploy](deploy.md#always-on-mode).
@@ -51,7 +63,7 @@ A proxy that terminates TLS sees the messages, the media, the tokens and the own
 
 ## Audit log
 
-zapgate writes one JSON line to its log for each tool call, each login event and each owner command. The line has the access, the tool, the account, the result and the client address. It never has the text of a message, a token or the password.
+zapgate writes one JSON line to its log for each tool call, each login event, each owner command and each webhook delivery attempt. The line has the access, the tool, the account, the result and the client address. It never has the text of a message, a token, a webhook secret, a header value or the password.
 
 ```bash
 docker compose logs zapgate

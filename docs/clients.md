@@ -74,3 +74,13 @@ curl -sS https://wa.example.com/mcp -H "Authorization: Bearer $ZAPGATE_TOKEN" -H
 ```
 
 With a valid token, the response has the `serverInfo`. Without a token, or with an invalid token, zapgate answers 401.
+
+### React to a webhook
+
+A bot that replies to new messages does not need to call `list_chats` again and again. Add a [webhook](webhooks.md) for the bot. zapgate then sends a signed POST to the bot when a message arrives, with one delivery for a burst of messages in one chat:
+
+```bash
+zapgate webhooks add support-bot --url https://bot.example.com/hooks/whatsapp --accounts work
+```
+
+The bot verifies the signature, then reads the new messages with its static token: the `fetch` field of the delivery has the `get_messages` call with its arguments.
