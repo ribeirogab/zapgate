@@ -44,14 +44,15 @@ type Harness struct {
 	Hosts       *Hosts
 	Random      *Random
 
-	cfg         config.Config
-	listenerURL bool
-	transcoder  media.Transcoder
-	audit       *lockedBuffer
-	address     string
-	running     *running
-	web         *http.Transport
-	browser     *http.Client
+	cfg            config.Config
+	listenerURL    bool
+	webhookTimeout time.Duration
+	transcoder     media.Transcoder
+	audit          *lockedBuffer
+	address        string
+	running        *running
+	web            *http.Transport
+	browser        *http.Client
 }
 
 type running struct {
@@ -61,9 +62,10 @@ type running struct {
 }
 
 type options struct {
-	configure     []func(*config.Config)
-	listenerIsURL bool
-	realFFmpeg    bool
+	configure      []func(*config.Config)
+	listenerIsURL  bool
+	realFFmpeg     bool
+	webhookTimeout time.Duration
 }
 
 type Option func(*options)
@@ -74,6 +76,10 @@ func WithConfig(fn func(*config.Config)) Option {
 
 func WithRealFFmpeg() Option {
 	return func(o *options) { o.realFFmpeg = true }
+}
+
+func WithWebhookTimeout(timeout time.Duration) Option {
+	return func(o *options) { o.webhookTimeout = timeout }
 }
 
 func WithPublicURLOfTheListener() Option {
@@ -92,17 +98,18 @@ func Start(t testing.TB, opts ...Option) *Harness {
 	}
 	t.Cleanup(func() { os.RemoveAll(socketDir) })
 	h := &Harness{
-		DataDir:     t.TempDir(),
-		AdminSocket: filepath.Join(socketDir, "admin.sock"),
-		WhatsApp:    fake.New(),
-		Clock:       clock.NewManual(StartTime),
-		Hosts:       newHosts(),
-		Random:      newRandom(),
-		audit:       &lockedBuffer{},
-		address:     "127.0.0.1:0",
-		listenerURL: o.listenerIsURL,
-		transcoder:  fakeTranscoder{},
-		web:         http.DefaultTransport.(*http.Transport).Clone(),
+		DataDir:        t.TempDir(),
+		AdminSocket:    filepath.Join(socketDir, "admin.sock"),
+		WhatsApp:       fake.New(),
+		Clock:          clock.NewManual(StartTime),
+		Hosts:          newHosts(),
+		Random:         newRandom(),
+		audit:          &lockedBuffer{},
+		address:        "127.0.0.1:0",
+		listenerURL:    o.listenerIsURL,
+		webhookTimeout: o.webhookTimeout,
+		transcoder:     fakeTranscoder{},
+		web:            http.DefaultTransport.(*http.Transport).Clone(),
 	}
 	h.browser = &http.Client{
 		Transport:     h.web,
@@ -169,13 +176,14 @@ func (h *Harness) start(t testing.TB) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	a, err := app.New(ctx, h.cfg, app.Deps{
-		OpenWhatsApp: h.WhatsApp.Opener(),
-		Clock:        h.Clock,
-		Audit:        h.audit,
-		Log:          slog.New(slog.NewJSONHandler(io.Discard, nil)),
-		Transcoder:   h.transcoder,
-		Resolver:     h.Hosts,
-		Random:       h.Random.Float64,
+		OpenWhatsApp:   h.WhatsApp.Opener(),
+		Clock:          h.Clock,
+		Audit:          h.audit,
+		Log:            slog.New(slog.NewJSONHandler(io.Discard, nil)),
+		Transcoder:     h.transcoder,
+		Resolver:       h.Hosts,
+		Random:         h.Random.Float64,
+		WebhookTimeout: h.webhookTimeout,
 	})
 	if err != nil {
 		cancel()

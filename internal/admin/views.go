@@ -107,6 +107,8 @@ type WebhookOptions struct {
 	Chats               string   `json:"chats,omitempty"`
 	Events              []string `json:"events"`
 	Content             string   `json:"content,omitempty"`
+	Format              string   `json:"format,omitempty"`
+	Headers             []string `json:"headers"`
 	Quiet               string   `json:"quiet,omitempty"`
 	MaxWait             string   `json:"max_wait,omitempty"`
 }
@@ -125,6 +127,7 @@ type WebhookView struct {
 	ListedChats []string `json:"listed_chats,omitempty"`
 	Content     string   `json:"content"`
 	Format      string   `json:"format"`
+	HeaderNames []string `json:"header_names,omitempty"`
 	State       string   `json:"state"`
 	CreatedAt   string   `json:"created_at"`
 
