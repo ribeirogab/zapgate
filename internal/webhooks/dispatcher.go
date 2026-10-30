@@ -24,6 +24,7 @@ type DispatcherDeps struct {
 	Store  *store.Store
 	Sender *Sender
 	Clock  clock.Clock
+	Random func() float64
 	Audit  *audit.Logger
 	Log    *slog.Logger
 }
@@ -54,24 +55,24 @@ func (d *Dispatcher) Wake() {
 
 func (d *Dispatcher) Run(ctx context.Context) error {
 	for {
-		wait := d.dispatch(ctx)
+		next := d.dispatch(ctx)
 		select {
 		case <-ctx.Done():
 			d.wg.Wait()
 			return nil
 		case <-d.wake:
-		case <-d.deps.Clock.After(wait):
+		case <-d.deps.Clock.At(next):
 		}
 	}
 }
 
-func (d *Dispatcher) dispatch(ctx context.Context) time.Duration {
+func (d *Dispatcher) dispatch(ctx context.Context) time.Time {
 	err := errors.Join(d.collect(ctx), d.sendDue(ctx))
 	if err != nil {
 		d.report(ctx, err)
-		return pollInterval
+		return d.nextPoll()
 	}
-	return d.untilNextDue(ctx)
+	return d.nextWake(ctx)
 }
 
 func (d *Dispatcher) collect(ctx context.Context) error {
@@ -142,16 +143,21 @@ func (d *Dispatcher) release() {
 	d.Wake()
 }
 
-func (d *Dispatcher) untilNextDue(ctx context.Context) time.Duration {
+func (d *Dispatcher) nextWake(ctx context.Context) time.Time {
+	poll := d.nextPoll()
 	if len(d.slots) == cap(d.slots) {
-		return pollInterval
+		return poll
 	}
 	due, ok, err := d.deps.Store.NextDeliveryDue(ctx)
-	if err != nil || !ok {
-		d.report(ctx, err)
-		return pollInterval
+	d.report(ctx, err)
+	if err != nil || !ok || poll.Before(due) {
+		return poll
 	}
-	return min(pollInterval, max(0, due.Sub(d.deps.Clock.Now())))
+	return due
+}
+
+func (d *Dispatcher) nextPoll() time.Time {
+	return d.deps.Clock.Now().Add(pollInterval)
 }
 
 func (d *Dispatcher) report(ctx context.Context, err error) {

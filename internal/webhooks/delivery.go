@@ -53,15 +53,36 @@ func dueAt(w store.Webhook, openedAt, lastEventAt time.Time) time.Time {
 	return maxWaitEnd
 }
 
-func outcome(result Result, at time.Time) store.AttemptOutcome {
-	next := store.AttemptOutcome{State: store.DeliveryFailed, Status: result.Status, SettledAt: at}
-	if result.Accepted() {
-		next.State = store.DeliveryDelivered
+func (d *Dispatcher) outcome(a attempt, result Result, at time.Time) store.AttemptOutcome {
+	switch {
+	case result.Accepted():
+		return settled(store.DeliveryDelivered, result, at)
+	case result.Retryable() && retriesLeft(a.delivery.Attempts):
+		return retrying(result, at.Add(d.retryDelay(a.delivery.Attempts, result, at)))
 	}
-	if result.Err != nil {
-		next.Error = result.Err.Error()
+	return settled(store.DeliveryFailed, result, at)
+}
+
+func settled(state string, result Result, at time.Time) store.AttemptOutcome {
+	return store.AttemptOutcome{State: state, Status: result.Status, Error: errorText(result), SettledAt: at}
+}
+
+func retrying(result Result, dueAt time.Time) store.AttemptOutcome {
+	return store.AttemptOutcome{State: store.DeliveryRetrying, DueAt: dueAt, Status: result.Status, Error: errorText(result)}
+}
+
+func errorText(result Result) string {
+	if result.Err == nil {
+		return ""
 	}
-	return next
+	return result.Err.Error()
+}
+
+func attemptResult(result Result, next store.AttemptOutcome) string {
+	if result.Blocked() {
+		return audit.ResultBlocked
+	}
+	return next.State
 }
 
 func (d *Dispatcher) send(ctx context.Context, delivery store.Delivery) {
@@ -116,7 +137,7 @@ func (d *Dispatcher) body(ctx context.Context, a attempt) (Body, error) {
 }
 
 func (d *Dispatcher) settle(ctx context.Context, a attempt, result Result) {
-	next := outcome(result, d.deps.Clock.Now())
+	next := d.outcome(a, result, d.deps.Clock.Now())
 	d.report(ctx, d.deps.Store.RecordAttempt(ctx, a.delivery.ID, next))
 	d.deps.Audit.WebhookDelivery(ctx, audit.WebhookDelivery{
 		Webhook:  a.webhook.Name,
@@ -125,6 +146,6 @@ func (d *Dispatcher) settle(ctx context.Context, a attempt, result Result) {
 		Events:   a.delivery.EventCount,
 		Attempt:  a.delivery.Attempts,
 		Status:   result.Status,
-		Result:   next.State,
+		Result:   attemptResult(result, next),
 	})
 }

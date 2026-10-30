@@ -120,6 +120,16 @@ type WebhookView struct {
 	Format    string   `json:"format"`
 	State     string   `json:"state"`
 	CreatedAt string   `json:"created_at"`
+
+	Pending     int            `json:"pending"`
+	Failed      int            `json:"failed"`
+	LastSuccess string         `json:"last_success,omitempty"`
+	LastError   *DeliveryError `json:"last_error,omitempty"`
+}
+
+type DeliveryError struct {
+	Status int    `json:"status,omitempty"`
+	Error  string `json:"error,omitempty"`
 }
 
 type CreatedWebhook struct {
