@@ -1,17 +1,13 @@
 package app_test
 
 import (
-	"database/sql"
 	"fmt"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/ribeirogab/zapgate/internal/app"
 	"github.com/ribeirogab/zapgate/internal/apptest"
-	"github.com/ribeirogab/zapgate/internal/sqlite"
 )
 
 func TestALogoutReachesTheWebhookAsAnAccountStateDelivery(t *testing.T) {
@@ -134,12 +130,7 @@ func TestTheEventJournalHasEachRealChangeOfTheAccountState(t *testing.T) {
 
 func stateJournal(t *testing.T, h *apptest.Harness) string {
 	t.Helper()
-	db, err := sql.Open(sqlite.Driver, sqlite.DSN(filepath.Join(h.DataDir, app.AppDBFile)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	rows, err := db.Query(`SELECT state FROM events WHERE kind = 'account.state' ORDER BY seq`)
+	rows, err := appDB(t, h).Query(`SELECT state FROM events WHERE kind = 'account.state' ORDER BY seq`)
 	if err != nil {
 		t.Fatal(err)
 	}
