@@ -192,25 +192,16 @@ func TestABurstOverTheSizeCapKeepsTheNewestMessagesAndFetchesFromTheFirst(t *tes
 	assertJSON(t, data["fetch"], `{"tool": "get_messages", "arguments": {"account": "work", "chat": "5531944443333@s.whatsapp.net", "after": "3EB0T0"}}`)
 }
 
-func addWebhookWithWindow(t *testing.T, h *apptest.Harness, rx *apptest.Receiver, name string, window ...string) {
-	t.Helper()
-	added := h.CLI(t, append([]string{"webhooks", "add", name, "--url", rx.URL, "--accounts", "work"}, window...)...)
-	if added.Code != 0 {
-		t.Fatalf("add the webhook %s: exit %d, stderr %q", name, added.Code, added.Stderr)
-	}
-	rx.Trust(secretFrom(t, added.Stdout))
-}
-
 func addWebhookSendingAtOnce(t *testing.T, h *apptest.Harness, rx *apptest.Receiver, name string) {
 	t.Helper()
-	addWebhookWithWindow(t, h, rx, name, "--quiet", "0s")
+	addWebhook(t, h, rx, name, "work", "--quiet", "0s")
 }
 
 func TestTheOwnerSetsTheQuietWindowAndTheMaxWait(t *testing.T) {
 	h := apptest.Start(t)
 	h.AddAccount(t, "work", workPhone, "Alex")
 	rx := h.StartReceiver(t)
-	addWebhookWithWindow(t, h, rx, "support-bot", "--quiet", "2s", "--max-wait=3s")
+	addWebhook(t, h, rx, "support-bot", "work", "--quiet", "2s", "--max-wait=3s")
 
 	receive(h, mariaJID, "3EB0Q1")
 	h.Clock.Advance(time.Second)
@@ -229,7 +220,7 @@ func TestAQuietWindowOfZeroSendsAtOnce(t *testing.T) {
 	h := apptest.Start(t)
 	h.AddAccount(t, "work", workPhone, "Alex")
 	rx := h.StartReceiver(t)
-	addWebhookWithWindow(t, h, rx, "support-bot", "--quiet", "0s", "--max-wait", "0s")
+	addWebhook(t, h, rx, "support-bot", "work", "--quiet", "0s", "--max-wait", "0s")
 
 	receive(h, mariaJID, "3EB0Z1")
 
@@ -286,6 +277,54 @@ func TestWebhooksAddRefusesAQuietWindowOrAMaxWaitOutOfRange(t *testing.T) {
 			}
 			if listed := h.CLI(t, "webhooks", "list"); listed.Stdout != "no webhook yet\n" {
 				t.Fatalf("a refused add changed the webhooks: %q", listed.Stdout)
+			}
+		})
+	}
+}
+
+func TestWebhooksSetChangesTheQuietWindowAndTheMaxWaitForTheNextDelivery(t *testing.T) {
+	h := apptest.Start(t)
+	h.AddAccount(t, "work", workPhone, "Alex")
+	rx := h.StartReceiver(t)
+	addWebhook(t, h, rx, "support-bot", "work")
+
+	set := h.CLI(t, "webhooks", "set", "support-bot", "--quiet", "2s", "--max-wait", "3s")
+	receive(h, mariaJID, "3EB0S1")
+	h.Clock.Advance(time.Second)
+	receive(h, mariaJID, "3EB0S2")
+	h.Clock.Advance(time.Second)
+	receive(h, mariaJID, "3EB0S3")
+	h.Clock.Advance(time.Second)
+
+	if set.Code != 0 {
+		t.Fatalf("exit %d, stdout %q, stderr %q", set.Code, set.Stdout, set.Stderr)
+	}
+	if body := deliveryWithID(t, rx.Await(t, 1), "dlv_1"); body.ids() != "3EB0S1,3EB0S2,3EB0S3" || body.Timestamp != sentAt(3) {
+		t.Fatalf("dlv_1 has %s at %s, want 3EB0S1,3EB0S2,3EB0S3 at %s", body.ids(), body.Timestamp, sentAt(3))
+	}
+}
+
+func TestWebhooksSetChecksTheMaxWaitAgainstTheStoredQuietWindow(t *testing.T) {
+	cases := []struct {
+		added  []string
+		set    []string
+		stderr string
+	}{
+		{nil, []string{"--max-wait", "4s"}, "the max wait 4s is not valid: use a duration from the quiet window (5s) to 10m"},
+		{[]string{"--quiet", "2s", "--max-wait", "3s"}, []string{"--quiet", "4s"}, "the max wait 3s is not valid: use a duration from the quiet window (4s) to 10m"},
+		{nil, []string{"--quiet", "soon"}, `the quiet window "soon" is not a duration: use a value such as 5s`},
+	}
+	for _, tc := range cases {
+		t.Run(strings.Join(tc.set, " "), func(t *testing.T) {
+			h := apptest.Start(t)
+			h.AddAccount(t, "work", workPhone, "Alex")
+			rx := h.StartReceiver(t)
+			addWebhook(t, h, rx, "support-bot", "work", tc.added...)
+
+			set := h.CLI(t, append([]string{"webhooks", "set", "support-bot"}, tc.set...)...)
+
+			if set.Code != 1 || set.Stderr != "zapgate: "+tc.stderr+"\n" || set.Stdout != "" {
+				t.Fatalf("exit %d, stdout %q, stderr %q, want %q", set.Code, set.Stdout, set.Stderr, tc.stderr)
 			}
 		})
 	}

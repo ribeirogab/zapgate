@@ -41,11 +41,13 @@ func TestWebhooksSetChangesTheChatsForTheNextDelivery(t *testing.T) {
 	rx := h.StartReceiver(t)
 	addWebhook(t, h, rx, "support-bot", "work")
 	h.WhatsApp.Emit(workPhone, message(inGroup(familyJID, joaoJID, types.JID{}, "3EB0G1", "João", morning), text("oi, família")))
+	passQuietWindow(h)
 	rx.Await(t, 1)
 
 	set := h.CLI(t, "webhooks", "set", "support-bot", "--chats", "direct")
 	h.WhatsApp.Emit(workPhone, message(inGroup(familyJID, joaoJID, types.JID{}, "3EB0G2", "João", morning), text("de novo")))
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0M1", "Maria", morning), text("oi")))
+	passQuietWindow(h)
 
 	if set.Code != 0 || set.Stdout != "changed the webhook support-bot (accounts: work, chats: direct, events: message.received, content: minimal)\n" {
 		t.Fatalf("exit %d, stdout %q, stderr %q", set.Code, set.Stdout, set.Stderr)
@@ -67,6 +69,7 @@ func TestWebhooksSetKeepsTheOptionsItDoesNotGet(t *testing.T) {
 	set := h.CLI(t, "webhooks", "set", "support-bot", "--url", rx.URL)
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0M1", "Maria", morning), text("oi")))
 	h.WhatsApp.Emit(workPhone, message(inGroup(familyJID, joaoJID, types.JID{}, "3EB0G1", "João", morning), text("oi, família")))
+	passQuietWindow(h)
 
 	if set.Code != 0 || set.Stdout != "changed the webhook support-bot (accounts: work, chats: groups, events: message.received,account.state, content: minimal)\n" {
 		t.Fatalf("exit %d, stdout %q, stderr %q", set.Code, set.Stdout, set.Stderr)
@@ -91,6 +94,7 @@ func TestWebhooksSetChangesTheContentLevelForTheNextDelivery(t *testing.T) {
 
 	set := h.CLI(t, "webhooks", "set", "support-bot", "--content", "full")
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0M1", "Maria", morning), text("oi, tudo bem?")))
+	passQuietWindow(h)
 
 	if set.Code != 0 || set.Stdout != "changed the webhook support-bot (accounts: work, chats: all, events: message.received, content: full)\n" {
 		t.Fatalf("exit %d, stdout %q, stderr %q", set.Code, set.Stdout, set.Stderr)
@@ -114,6 +118,7 @@ func TestWebhooksSetMovesTheListedChatsToTheNewAccounts(t *testing.T) {
 	h.WhatsApp.Emit(workPhone, message(direct(mariaJID, "3EB0W1", "Maria", morning), text("no trabalho")))
 	h.WhatsApp.Emit(personalPhone, message(direct(joaoJID, "3EB0J1", "João", morning), text("outro chat")))
 	h.WhatsApp.Emit(personalPhone, message(direct(mariaJID, "3EB0P1", "Maria", morning), text("no pessoal")))
+	passQuietWindow(h)
 
 	if set.Code != 0 || set.Stdout != "changed the webhook support-bot (accounts: personal, chats: "+mariaJID.String()+", events: message.received, content: minimal)\n" {
 		t.Fatalf("exit %d, stdout %q, stderr %q", set.Code, set.Stdout, set.Stderr)
