@@ -348,3 +348,43 @@ func webhookIDs(received []apptest.Received) string {
 	}
 	return strings.Join(ids, " ")
 }
+
+func corruptTheEventOf(t *testing.T, h *apptest.Harness, messageID string) {
+	t.Helper()
+	if _, err := appDB(t, h).Exec(`UPDATE events SET created_at = 'not a time' WHERE message_id = ?`, messageID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestADeliveryWithABodyThatCannotBeBuiltFailsAtOnce(t *testing.T) {
+	h := apptest.Start(t)
+	h.AddAccount(t, "work", workPhone, "Alex")
+	rx := h.StartReceiver(t)
+	addWebhook(t, h, rx, "support-bot", "work")
+	receive(h, mariaJID, "3EB0A1")
+	awaitJournalRead(t, h)
+	corruptTheEventOf(t, h, "3EB0A1")
+
+	passQuietWindow(h)
+	failed := awaitAttempts(t, h, 1)[0]
+	receiveAndWait(h, mariaJID, "3EB0A2")
+	got := rx.Await(t, 1)
+	awaitAttempts(t, h, 2)
+	h.Clock.Advance(24 * time.Hour)
+	requireNoNewRequest(t, rx, 1)
+
+	assertFields(t, failed, map[string]string{"webhook": "support-bot", "account": "work", "delivery": "dlv_1", "result": "failed"})
+	if failed["events"] != float64(1) || failed["attempt"] != float64(1) || failed["status"] != float64(0) {
+		t.Fatalf("attempt line %v, want 1 event, attempt 1 and no status", failed)
+	}
+	if body := deliveryWithID(t, got, "dlv_2"); body.ids() != "3EB0A2" {
+		t.Fatalf("dlv_2 has %s, want 3EB0A2", body.ids())
+	}
+	if lines := awaitAttempts(t, h, 2); len(lines) != 2 {
+		t.Fatalf("the audit log has %d delivery attempts, want 2: %v", len(lines), lines)
+	}
+	row := listedWebhook(t, h, "support-bot")
+	if row["PENDING"] != "0" || row["FAILED"] != "1" || !strings.HasPrefix(row["LAST ERROR"], "zapgate cannot build the delivery: ") {
+		t.Fatalf("webhooks list %v, want 1 failed delivery that zapgate cannot build", row)
+	}
+}

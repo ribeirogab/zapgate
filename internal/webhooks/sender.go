@@ -84,9 +84,10 @@ func (r Result) Blocked() bool {
 }
 
 type Sender struct {
-	plain   *http.Client
-	secure  *http.Client
-	timeout time.Duration
+	plain     *http.Client
+	secure    *http.Client
+	timeout   time.Duration
+	postSlots postSlots
 }
 
 func NewSender(resolver Resolver, timeout time.Duration) *Sender {
@@ -94,9 +95,10 @@ func NewSender(resolver Resolver, timeout time.Duration) *Sender {
 	plain := newTransport(localDialer{resolver: resolver, dialer: dialer}.DialContext)
 	plain.DisableKeepAlives = true
 	return &Sender{
-		plain:   newClient(plain, timeout),
-		secure:  newClient(newTransport(dialer.DialContext), timeout),
-		timeout: timeout,
+		plain:     newClient(plain, timeout),
+		secure:    newClient(newTransport(dialer.DialContext), timeout),
+		timeout:   timeout,
+		postSlots: newPostSlots(),
 	}
 }
 
@@ -127,6 +129,14 @@ func (s *Sender) clientFor(req *http.Request) *http.Client {
 }
 
 func (s *Sender) Send(ctx context.Context, p Post) Result {
+	if err := s.postSlots.take(ctx); err != nil {
+		return Result{Err: err}
+	}
+	defer s.postSlots.release()
+	return s.sendInSlot(ctx, p)
+}
+
+func (s *Sender) sendInSlot(ctx context.Context, p Post) Result {
 	var sent atomic.Bool
 	req, err := newRequest(httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
 		WroteRequest: func(info httptrace.WroteRequestInfo) { sent.Store(info.Err == nil) },

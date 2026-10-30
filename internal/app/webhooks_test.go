@@ -211,6 +211,11 @@ func TestWebhooksTestOfAnUnknownWebhook(t *testing.T) {
 
 func ownerGet(t *testing.T, h *apptest.Harness, path string) string {
 	t.Helper()
+	return ownerRequest(t, h, http.MethodGet, path, "")
+}
+
+func ownerRequest(t *testing.T, h *apptest.Harness, method, path, body string) string {
+	t.Helper()
 	client := &http.Client{Transport: &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			var dialer net.Dialer
@@ -218,7 +223,11 @@ func ownerGet(t *testing.T, h *apptest.Harness, path string) string {
 		},
 	}}
 	defer client.CloseIdleConnections()
-	resp, err := client.Get("http://owner" + path)
+	req, err := http.NewRequest(method, "http://owner"+path, strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,17 +235,34 @@ func ownerGet(t *testing.T, h *apptest.Harness, path string) string {
 	return apptest.ReadBody(t, resp)
 }
 
-func TestOnlyTheCreateRouteReturnsTheSecret(t *testing.T) {
+func TestOnlyTheCreateAndTheRotateRoutesReturnTheSecret(t *testing.T) {
 	h := apptest.Start(t)
+	rx := h.StartReceiver(t)
+	ctx := context.Background()
 
-	created, err := h.Owner.AddWebhook(context.Background(), admin.AddWebhookRequest{Name: "support-bot", WebhookOptions: admin.WebhookOptions{URL: botURL, AllExistingAccounts: true}})
-
+	created, err := h.Owner.AddWebhook(ctx, admin.AddWebhookRequest{Name: "support-bot", WebhookOptions: admin.WebhookOptions{URL: rx.URL, AllExistingAccounts: true}})
 	if err != nil || !strings.HasPrefix(created.Secret, "whsec_") || created.Webhook.Name != "support-bot" {
 		t.Fatalf("created %+v, error %v", created, err)
 	}
-	listed := ownerGet(t, h, "/webhooks")
-	if !strings.Contains(listed, `"name":"support-bot"`) || strings.Contains(listed, created.Secret) || strings.Contains(listed, "whsec_") {
-		t.Fatalf("GET /webhooks %s", listed)
+	rotated, err := h.Owner.RotateWebhookSecret(ctx, "support-bot")
+	if err != nil || !strings.HasPrefix(rotated.Secret, "whsec_") || rotated.Secret == created.Secret {
+		t.Fatalf("rotated %+v, error %v", rotated, err)
+	}
+
+	answers := map[string]string{
+		"GET /webhooks":                        ownerGet(t, h, "/webhooks"),
+		"PATCH /webhooks/support-bot":          ownerRequest(t, h, http.MethodPatch, "/webhooks/support-bot", `{"content":"full"}`),
+		"POST /webhooks/support-bot/enable":    ownerRequest(t, h, http.MethodPost, "/webhooks/support-bot/enable", ""),
+		"POST /webhooks/support-bot/test":      ownerRequest(t, h, http.MethodPost, "/webhooks/support-bot/test", ""),
+		"POST /webhooks/support-bot/redeliver": ownerRequest(t, h, http.MethodPost, "/webhooks/support-bot/redeliver", `{}`),
+	}
+	for route, answer := range answers {
+		if !strings.Contains(answer, `"name":"support-bot"`) {
+			t.Fatalf("%s answered %s, want the webhook", route, answer)
+		}
+		if strings.Contains(answer, created.Secret) || strings.Contains(answer, rotated.Secret) || strings.Contains(answer, "whsec_") {
+			t.Fatalf("%s returns a secret: %s", route, answer)
+		}
 	}
 }
 

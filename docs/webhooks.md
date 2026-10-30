@@ -122,9 +122,11 @@ The receiver accepts a delivery with a 2xx answer. zapgate waits at most 5 secon
 
 zapgate never follows a redirect and uses no proxy.
 
+When zapgate cannot build the body from `app.db`, the delivery is `failed` at once and sends nothing. A retry reads the same data and gets the same error, and a delivery that waits for a retry holds back the next deliveries of its chat. `list` shows the error as `zapgate cannot build the delivery: ...`, and the error log has it too. After the fix, `redeliver` sends the delivery again.
+
 After the first attempt, the schedule has up to 10 retries: after 5 s, 30 s, 2 min, 10 min, 30 min, 1 h, 2 h, 4 h, 6 h and 8 h, each with ±20% jitter. That is about 22 hours. After the last retry, the delivery is `failed`. The deliveries stay in `app.db`, so the schedule continues after a restart.
 
-At most 4 POSTs run at the same time, for all webhooks together.
+At most 4 POSTs run at the same time, for all webhooks together. `webhooks test` counts too: it waits while 4 POSTs run.
 
 ### Order
 
@@ -137,7 +139,7 @@ A delivery that `redeliver` opens again leaves after the newer deliveries that a
 A delivery arrives at least once. The receiver can get the same delivery again, for example:
 
 - when its answer came after the 15-second timeout;
-- when zapgate stopped during the POST. The POST leaves again at most 30 seconds after zapgate starts;
+- when zapgate stopped during the POST. The POST leaves again at most 30 seconds after zapgate starts. A [Claude Code routine](#claude-code-routines) does not get it again;
 - after `redeliver`.
 
 Every attempt of a delivery has the same `webhook-id`. Keep the IDs that you handled for some days, and answer 2xx to an ID that you already saw, without the work.
@@ -409,6 +411,8 @@ zapgate adds the headers `anthropic-version: 2026-10-21` and `anthropic-beta: ex
 A routine has no access to zapgate of its own. Use `--content full` when the routine must read the messages. See [Security](security.md#webhooks-send-data-out).
 
 The routine endpoint has no idempotency key, so each attempt starts one more session. For this reason, a request that was sent and then got no answer, such as a timeout, is `failed` without a retry. A connection failure before the send, 408, 3xx, 429 and 5xx get retries as above.
+
+When zapgate stops or crashes during an attempt, it cannot know if the routine started. After the start, the delivery is `failed` and sends nothing again. `list` shows `an earlier attempt stopped before its result was recorded; zapgate does not fire a routine twice`.
 
 A routine accepts 30 fires per hour. When the limit is reached, the routine answers 429 with `Retry-After`, and zapgate waits. A longer quiet window and max wait give fewer sessions, for example `--quiet 30s --max-wait 5m`.
 
