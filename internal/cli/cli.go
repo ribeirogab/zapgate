@@ -27,7 +27,9 @@ const (
   zapgate access set <name> [--accounts <a,b|all>] [--approval elicitation|app]
   zapgate access revoke <name>
   zapgate webhooks add <name> --url <url> --accounts <a,b|all>
+      [--events message.received,account.state] [--chats all|direct|groups|<chat,...>]
   zapgate webhooks list
+  zapgate webhooks set <name> [the options of add]
   zapgate webhooks remove <name>
   zapgate webhooks test <name>
   zapgate webhooks rotate-secret <name>

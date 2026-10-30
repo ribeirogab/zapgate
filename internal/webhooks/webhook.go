@@ -46,7 +46,12 @@ const (
 	httpsScheme    = "https"
 )
 
-var defaultEvents = []string{EventMessageReceived}
+const knownEventsLabel = EventMessageReceived + " or " + EventAccountState
+
+var (
+	defaultEvents = []string{EventMessageReceived}
+	knownEvents   = []string{EventMessageReceived, EventAccountState}
+)
 
 type InvalidError struct {
 	Message string

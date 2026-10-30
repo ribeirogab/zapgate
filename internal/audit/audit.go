@@ -27,6 +27,7 @@ const (
 	ActionAccountRemove    = "account_remove"
 	ActionAccountRetention = "account_retention"
 	ActionWebhookAdd       = "webhook_add"
+	ActionWebhookSet       = "webhook_set"
 	ActionWebhookRemove    = "webhook_remove"
 	ActionWebhookTest      = "webhook_test"
 	ActionWebhookRotate    = "webhook_rotate_secret"
