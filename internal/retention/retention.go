@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	Interval   = 24 * time.Hour
-	batchPause = 100 * time.Millisecond
+	Interval         = 24 * time.Hour
+	JournalRetention = 7 * 24 * time.Hour
+	batchPause       = 100 * time.Millisecond
 )
 
 type Deps struct {
@@ -31,6 +32,8 @@ type Pass struct {
 	FinishedAt time.Time
 	Messages   int
 	Files      int
+	Events     int
+	Deliveries int
 }
 
 type Worker struct {
@@ -71,28 +74,59 @@ func (w *Worker) LastPass() Pass {
 func (w *Worker) runPass(ctx context.Context) time.Time {
 	started := w.begin()
 	accounts, err := w.deps.Store.ListAccounts(ctx)
-	w.report(ctx, err)
+	w.report(ctx, "messages", err)
 	for _, account := range accounts {
 		if ctx.Err() != nil {
 			break
 		}
-		w.report(ctx, w.expire(ctx, account, started), "account", account.Name)
+		w.report(ctx, "messages", w.expire(ctx, account, started), "account", account.Name)
 	}
+	w.report(ctx, "events", w.expireEvents(ctx, started))
+	w.report(ctx, "deliveries", w.expireDeliveries(ctx, started))
 	pass := w.finish()
-	w.deps.Log.Info("retention pass finished", "deleted_messages", pass.Messages, "deleted_files", pass.Files)
+	w.deps.Log.Info("retention pass finished", "deleted_messages", pass.Messages, "deleted_files", pass.Files,
+		"deleted_events", pass.Events, "deleted_deliveries", pass.Deliveries)
 	return started
 }
 
 func (w *Worker) expire(ctx context.Context, account store.Account, now time.Time) error {
 	before := now.AddDate(0, -Months(account, w.deps.DefaultMonths), 0)
-	for {
+	return inBatches(ctx, func() (int, error) {
 		batch, err := w.deps.Store.DeleteMessagesBefore(ctx, account.ID, before, w.removeFiles)
 		if err != nil {
-			return err
+			return 0, err
 		}
-		w.count(batch)
-		if batch.Messages < store.RetentionBatch {
-			return nil
+		w.count(func(p *Pass) {
+			p.Messages += batch.Messages
+			p.Files += batch.Files
+		})
+		return batch.Messages, nil
+	})
+}
+
+func (w *Worker) expireEvents(ctx context.Context, now time.Time) error {
+	before := now.Add(-JournalRetention)
+	return inBatches(ctx, func() (int, error) {
+		deleted, err := w.deps.Store.DeleteEventsBefore(ctx, before)
+		w.count(func(p *Pass) { p.Events += deleted })
+		return deleted, err
+	})
+}
+
+func (w *Worker) expireDeliveries(ctx context.Context, now time.Time) error {
+	before := now.Add(-JournalRetention)
+	return inBatches(ctx, func() (int, error) {
+		deleted, err := w.deps.Store.DeleteDeliveriesSettledBefore(ctx, before)
+		w.count(func(p *Pass) { p.Deliveries += deleted })
+		return deleted, err
+	})
+}
+
+func inBatches(ctx context.Context, deleteBatch func() (int, error)) error {
+	for {
+		deleted, err := deleteBatch()
+		if err != nil || deleted < store.RetentionBatch {
+			return err
 		}
 		if err := pause(ctx); err != nil {
 			return err
@@ -126,11 +160,10 @@ func (w *Worker) begin() time.Time {
 	return w.pass.StartedAt
 }
 
-func (w *Worker) count(batch store.ExpiredBatch) {
+func (w *Worker) count(add func(pass *Pass)) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.pass.Messages += batch.Messages
-	w.pass.Files += batch.Files
+	add(&w.pass)
 }
 
 func (w *Worker) finish() Pass {
@@ -141,8 +174,8 @@ func (w *Worker) finish() Pass {
 	return w.pass
 }
 
-func (w *Worker) report(ctx context.Context, err error, attrs ...any) {
+func (w *Worker) report(ctx context.Context, rows string, err error, attrs ...any) {
 	if err != nil && ctx.Err() == nil {
-		w.deps.Log.Error("the retention pass cannot delete old messages", append(attrs, "error", err)...)
+		w.deps.Log.Error("the retention pass cannot delete old "+rows, append(attrs, "error", err)...)
 	}
 }
