@@ -122,11 +122,12 @@ func (a *App) wire(deps Deps, outbox *media.Outbox) {
 	dispatcher := webhooks.NewDispatcher(webhooks.DispatcherDeps{Store: a.store, Sender: sender, Clock: deps.Clock, Random: random(deps), Audit: auditLog, Log: deps.Log})
 	var downloads *media.Downloader
 	manager := accounts.New(accounts.Deps{
-		Store:    a.store,
-		WhatsApp: a.whatsapp,
-		Clock:    deps.Clock,
-		Log:      deps.Log,
-		Changed:  func(ctx context.Context) { a.endpoint.AccountsChanged(ctx) },
+		Store:      a.store,
+		WhatsApp:   a.whatsapp,
+		Clock:      deps.Clock,
+		Log:        deps.Log,
+		Changed:    func(ctx context.Context) { a.endpoint.AccountsChanged(ctx) },
+		StateSaved: dispatcher.Wake,
 		Ingest: func(ctx context.Context, accountID int64, client whatsapp.Client, evt any) {
 			ingester.Handle(ctx, ingest.Source{AccountID: accountID, Client: client}, evt)
 			downloads.Notice(accountID, evt)
