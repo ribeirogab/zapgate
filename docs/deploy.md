@@ -123,7 +123,7 @@ Keep the signing key the same. A new key makes the open media links and the appr
 
 ## Without Docker
 
-zapgate is one static binary. Download it from the [releases](https://github.com/ribeirogab/zapgate/releases), or build it with Go 1.26:
+zapgate is one static binary. Download it from the [releases](https://github.com/ribeirogab/zapgate/releases), or build it with Go 1.27:
 
 ```bash
 go install github.com/ribeirogab/zapgate/cmd/zapgate@latest
