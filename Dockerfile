@@ -12,7 +12,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     -ldflags="-s -w -X github.com/ribeirogab/zapgate/internal/mcpserver.Version=${VERSION}" \
     -o /out/zapgate ./cmd/zapgate
 
-FROM debian:trixie-20261020-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad
+FROM debian:trixie-20261104-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
 ARG USER_UID=1000
 ARG USER_GID=1000
 RUN apt-get update \
