@@ -2,7 +2,7 @@
 
 ## Development
 
-You need Go 1.26. `ffmpeg` is optional: without it, the voice note test skips the real conversion.
+You need Go 1.27. `ffmpeg` is optional: without it, the voice note test skips the real conversion.
 
 ```bash
 go test ./...
